@@ -1,0 +1,7 @@
+/TMP_UtitlityFiles
+/.vs
+/\.vscode
+/bin
+/obj
+**/bin
+**/obj

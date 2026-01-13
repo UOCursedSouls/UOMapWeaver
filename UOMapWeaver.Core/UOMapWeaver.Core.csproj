@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>UOMapWeaver.Core</AssemblyName>
+    <RootNamespace>UOMapWeaver.Core</RootNamespace>
+    <ApplicationIcon>UOMapWeaver.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="UOMapWeaver.ico" />
+  </ItemGroup>
+</Project>

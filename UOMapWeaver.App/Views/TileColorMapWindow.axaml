@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="UOMapWeaver.App.Views.TileColorMapView">
+  <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="Auto,*">
+    <TextBlock Grid.Row="0" Grid.Column="0" Text="JSON File" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <TextBox Name="JsonPathBox" Width="360" TextChanged="OnTextChanged" />
+      <Button Content="Browse" Click="OnBrowseJson" />
+      <Button Content="Load" Click="OnLoadJson" />
+    </StackPanel>
+    <TextBlock Grid.Row="1" Grid.Column="1" Name="JsonInfoText" />
+
+    <TextBlock Grid.Row="2" Grid.Column="0" Text="Mode" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <ComboBox Name="ModeComboBox" Width="180" SelectionChanged="OnSelectionChanged" />
+      <TextBlock Name="ModeHintText" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <TextBlock Grid.Row="3" Grid.Column="0" Text="Map.mul files" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <Button Content="Add" Click="OnAddMap" />
+      <Button Content="Remove" Click="OnRemoveMap" />
+      <Button Content="Clear" Click="OnClearMaps" />
+    </StackPanel>
+
+    <ListBox Grid.Row="4" Grid.Column="1" Name="MapListBox" Height="260" />
+
+    <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
+      <Button Content="Build JSON" Click="OnBuild" />
+      <TextBlock Name="StatusText" VerticalAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</UserControl>

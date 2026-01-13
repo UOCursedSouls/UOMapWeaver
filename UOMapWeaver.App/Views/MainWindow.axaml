@@ -1,0 +1,99 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:UOMapWeaver.App.Views"
+        x:Class="UOMapWeaver.App.Views.MainWindow"
+        Title="UOMapWeaver"
+        Width="1080"
+        Height="820">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Border Grid.Row="0" Padding="6" Background="#1E1E1E">
+      <DockPanel>
+        <ToggleButton Name="LogsToggle" Content="Log" DockPanel.Dock="Left" />
+        <ToggleButton Name="SaveStateToggle" Content="Save Fields" DockPanel.Dock="Right" />
+        <Button Name="ResetStateButton" Content="Reset Fields" DockPanel.Dock="Right" />
+        <Button Name="DataReadmeButton" Content="Data" DockPanel.Dock="Right" />
+        <Button Name="CancelButton" Content="Stop" DockPanel.Dock="Right" IsEnabled="False" />
+        <SelectableTextBlock Name="BannerText" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap">
+          <SelectableTextBlock.Inlines>
+            <Run Name="BannerTimestampRun" Text="[00:00:00.000]" Foreground="#9A9A9A" />
+            <Run Text=" " />
+            <Run Name="BannerMessageRun" Text="Ready." Foreground="White" />
+          </SelectableTextBlock.Inlines>
+        </SelectableTextBlock>
+      </DockPanel>
+    </Border>
+    <TabControl Grid.Row="1" Margin="8">
+      <TabItem Header="Tile Colors">
+        <views:TileColorMapView />
+      </TabItem>
+      <TabItem Header="MUL -> BMP">
+        <views:MulToBmpView />
+      </TabItem>
+      <TabItem Header="BMP -> MUL">
+        <views:BmpToMulView />
+      </TabItem>
+      <TabItem Header="Blank BMP">
+        <views:BlankBmpView />
+      </TabItem>
+      <TabItem Header="Map Copy">
+        <views:MapCopyView />
+      </TabItem>
+    </TabControl>
+    <Grid Name="LogOverlay" Grid.Row="1" IsVisible="False">
+      <Border Background="#DD000000" IsHitTestVisible="False" />
+      <Border BorderBrush="#3A3A3A"
+              BorderThickness="1"
+              Background="#CC1E1E1E"
+              Padding="8"
+              Margin="10"
+              VerticalAlignment="Stretch">
+        <ListBox Name="LogList"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 SelectionMode="Multiple">
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Select All" Click="OnSelectAllLogs" />
+              <MenuItem Header="Copy Selected" Click="OnCopySelectedLogs" />
+              <MenuItem Header="Copy All" Click="OnCopyAllLogs" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="Padding" Value="0" />
+              <Setter Property="Margin" Value="0" />
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:CompileBindings="False">
+              <SelectableTextBlock TextWrapping="Wrap" Margin="0">
+                <SelectableTextBlock.Inlines>
+                  <Run Text="{Binding Timestamp}" Foreground="{Binding TimestampForeground}" />
+                  <Run Text=" " />
+                  <Run Text="{Binding Message}" Foreground="{Binding MessageForeground}" />
+                </SelectableTextBlock.Inlines>
+              </SelectableTextBlock>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+    </Grid>
+    <Border Grid.Row="2" Padding="6" Background="#1E1E1E">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <ProgressBar Name="GlobalProgressBar" Width="240" Height="10" Minimum="0" Maximum="100" IsVisible="False" />
+        <TextBlock Name="GlobalProgressText" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>
+

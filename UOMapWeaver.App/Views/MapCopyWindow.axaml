@@ -1,0 +1,356 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="UOMapWeaver.App.Views.MapCopyView">
+  <TabControl Margin="8">
+    <TabItem Header="Paths">
+      <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+        <Border Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Source Map" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="SourceMapPathBox" Width="320" TextChanged="OnSourceTextChanged" />
+              <Button Content="Browse" Click="OnBrowseSourceMap" />
+            </StackPanel>
+            <TextBlock Name="SourceMapSizeText" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="SourceStaIdxPathBox" Width="320" TextChanged="OnSourceTextChanged" Watermark="staidx.mul" />
+              <Button Content="Browse" Click="OnBrowseSourceStaIdx" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="SourceStaticsPathBox" Width="320" TextChanged="OnSourceTextChanged" Watermark="statics.mul" />
+              <Button Content="Browse" Click="OnBrowseSourceStatics" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <CheckBox Name="UseVerdataCheckBox" Content="Use verdata" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+              <TextBox Name="VerdataPathBox" Width="240" TextChanged="OnVerdataTextChanged" Watermark="verdata.mul" />
+              <Button Content="Browse" Click="OnBrowseVerdata" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <CheckBox Name="VerdataTerrainCheckBox" Content="Apply to terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+              <CheckBox Name="VerdataStaticsCheckBox" Content="Apply to statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+              <TextBlock Text="Map fileId" VerticalAlignment="Center" />
+              <TextBox Name="VerdataMapFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
+              <TextBlock Text="Statics fileId" VerticalAlignment="Center" />
+              <TextBox Name="VerdataStaticsFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
+            </StackPanel>
+            <TextBlock Name="VerdataSizeText" />
+            <TextBlock Text="Copy Area (From -> To)" Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="SourceFromXBox" Width="70" Watermark="From X" TextChanged="OnSourceRegionChanged" />
+              <TextBox Name="SourceFromYBox" Width="70" Watermark="From Y" TextChanged="OnSourceRegionChanged" />
+              <TextBlock Text="to" VerticalAlignment="Center" />
+              <TextBox Name="SourceToXBox" Width="70" Watermark="To X" TextChanged="OnSourceRegionChanged" />
+              <TextBox Name="SourceToYBox" Width="70" Watermark="To Y" TextChanged="OnSourceRegionChanged" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1" Margin="6,0,0,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Destination Map" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="DestMapPathBox" Width="320" TextChanged="OnDestTextChanged" />
+              <Button Content="Browse" Click="OnBrowseDestMap" />
+            </StackPanel>
+            <TextBlock Name="DestMapSizeText" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="DestStaIdxPathBox" Width="320" TextChanged="OnDestTextChanged" Watermark="staidx.mul" />
+              <Button Content="Browse" Click="OnBrowseDestStaIdx" />
+            </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="DestStaticsPathBox" Width="320" TextChanged="OnDestTextChanged" Watermark="statics.mul" />
+              <Button Content="Browse" Click="OnBrowseDestStatics" />
+            </StackPanel>
+            <TextBlock Text="Paste Start (X,Y)" Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="DestStartXBox" Width="70" Watermark="X" TextChanged="OnDestStartChanged" />
+              <TextBox Name="DestStartYBox" Width="70" Watermark="Y" TextChanged="OnDestStartChanged" />
+            </StackPanel>
+            <TextBlock Name="AlignmentHintText" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="*,*">
+            <StackPanel Spacing="6" Margin="0,0,6,0">
+              <TextBlock Text="Source Area BMP" FontWeight="Bold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Name="SourceBmpPathBox" Width="320" TextChanged="OnSourceBmpPathChanged" />
+                <Button Content="Browse" Click="OnBrowseSourceBmp" />
+              </StackPanel>
+              <TextBlock Name="SourceBmpInfoText" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="6" Margin="6,0,0,0">
+              <TextBlock Text="Destination BMP" FontWeight="Bold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Name="DestBmpPathBox" Width="320" TextChanged="OnDestBmpPathChanged" />
+                <Button Content="Browse" Click="OnBrowseDestBmp" />
+              </StackPanel>
+              <TextBlock Name="DestBmpInfoText" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Save Folder" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <TextBox Name="OutputFolderBox" Width="320" TextChanged="OnOutputFolderChanged" />
+              <Button Content="Browse" Click="OnBrowseOutputFolder" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Preview Encoding" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <ComboBox Name="PreviewEncodingComboBox" Width="220" SelectionChanged="OnPreviewEncodingChanged" />
+            </StackPanel>
+
+            <TextBlock Name="PreviewMapTransLabel" Grid.Row="2" Grid.Column="0" Text="Preview MapTrans" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <ComboBox Name="PreviewMapTransComboBox" Width="300" />
+              <Button Name="PreviewMapTransBrowseButton" Content="Browse" Click="OnBrowsePreviewMapTrans" />
+            </StackPanel>
+
+            <TextBlock Name="PreviewTileJsonLabel" Grid.Row="3" Grid.Column="0" Text="Preview Tile JSON" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <TextBox Name="PreviewTileJsonPathBox" Width="300" TextChanged="OnPreviewTextChanged" />
+              <Button Name="PreviewTileJsonBrowseButton" Content="Browse" Click="OnBrowsePreviewTileJson" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+          <CheckBox Name="CopyMapCheckBox" Content="Copy map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+          <CheckBox Name="CopyStaticsCheckBox" Content="Copy statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+          <ComboBox Name="StaticsCopyModeComboBox" Width="200" SelectionChanged="OnOptionChanged" />
+          <ComboBox Name="StaticsLayoutComboBox" Width="200" SelectionChanged="OnOptionChanged" />
+          <TextBlock Text="Statics Z" VerticalAlignment="Center" />
+          <ComboBox Name="StaticsZModeComboBox" Width="160" SelectionChanged="OnOptionChanged" />
+          <TextBox Name="StaticsFixedZBox" Width="60" Watermark="Z" TextChanged="OnFixedZChanged" />
+          <CheckBox Name="OverwriteTerrainCheckBox" Content="Overwrite terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+          <CheckBox Name="OverwriteStaticsCheckBox" Content="Overwrite statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+          <CheckBox Name="SaveAsNewMapCheckBox" Content="Save as new map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+          <Button Name="PreviewGenerateButton" Content="Generate Preview BMPs" Click="OnGeneratePreview" />
+          <Button Name="CopyButton" Content="Copy Region" Click="OnCopy" />
+          <TextBlock Name="StatusText" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Tile Validation">
+      <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,*" Margin="0,4,0,0">
+        <Border Grid.Row="0" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+            <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,6,0">
+              <TextBlock Text="Source Client Folder" FontWeight="Bold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Name="SourceClientFolderBox" Width="320" TextChanged="OnClientPathChanged" />
+                <Button Content="Browse" Click="OnBrowseSourceClient" />
+              </StackPanel>
+              <TextBlock Name="SourceClientInfoText" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="6" Margin="6,0,0,0">
+              <TextBlock Text="Destination Client Folder" FontWeight="Bold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Name="DestClientFolderBox" Width="320" TextChanged="OnClientPathChanged" />
+                <Button Content="Browse" Click="OnBrowseDestClient" />
+              </StackPanel>
+              <TextBlock Name="DestClientInfoText" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+              <Button Name="ValidationScanButton" Content="Scan Selected Area" Click="OnScanValidation" />
+              <Button Name="ValidationClearButton" Content="Clear Results" Click="OnClearValidation" />
+              <TextBlock Name="ValidationSummaryText" VerticalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,0,6,0">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Missing Terrain IDs" FontWeight="Bold" />
+            <TextBlock Name="ValidationMissingTerrainText" />
+            <ListBox Name="MissingTerrainList" Height="420" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Grid.Column="1" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="6,0,0,0">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Missing Static IDs" FontWeight="Bold" />
+            <TextBlock Name="ValidationMissingStaticsText" />
+            <ListBox Name="MissingStaticsList" Height="420" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Tile Remap">
+      <Grid RowDefinitions="Auto,*" Margin="0,4,0,0">
+        <Border Grid.Row="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Tile Replace JSON" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <TextBox Name="TileReplacePathBox" Width="320" TextChanged="OnReplacePathChanged" />
+              <Button Content="Browse" Click="OnBrowseTileReplace" />
+              <Button Content="Load" Click="OnLoadTileReplace" />
+              <Button Content="Save" Click="OnSaveTileReplace" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+              <CheckBox Name="ApplyTileReplaceCheckBox" Content="Apply replacements during Map Copy" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+              <Button Name="LoadMissingButton" Content="Load Missing From Validation" Click="OnLoadMissingForReplace" />
+              <Button Name="ClearReplaceButton" Content="Clear Remap List" Click="OnClearRemap" />
+              <TextBlock Name="TileReplaceStatusText" VerticalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" RowDefinitions="Auto,*">
+          <Border Grid.Column="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,0,6,0">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Terrain Remap" FontWeight="Bold" />
+              <ScrollViewer Height="420">
+                <ItemsControl Name="TerrainRemapList">
+                  <ItemsControl.ItemTemplate>
+                  <DataTemplate x:CompileBindings="False">
+                      <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding DisplayId}" Width="90" />
+                        <TextBlock Text="{Binding CountText}" Width="80" />
+                        <TextBox Text="{Binding ReplacementText, Mode=TwoWay}" Width="120" Watermark="Replacement" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="6,0,0,0">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Statics Remap" FontWeight="Bold" />
+              <ScrollViewer Height="420">
+                <ItemsControl Name="StaticsRemapList">
+                  <ItemsControl.ItemTemplate>
+                  <DataTemplate x:CompileBindings="False">
+                      <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding DisplayId}" Width="90" />
+                        <TextBlock Text="{Binding CountText}" Width="80" />
+                        <TextBox Text="{Binding ReplacementText, Mode=TwoWay}" Width="120" Watermark="Replacement" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Preview">
+      <Grid RowDefinitions="Auto,*" Margin="0,0,0,6">
+        <Border Grid.Row="0" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Preview Copy Area" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <TextBlock Name="PreviewSourceRangeText" />
+              <TextBlock Name="PreviewDestStartText" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <TabControl Grid.Row="1">
+          <TabItem Header="Source Area BMP">
+            <Border Margin="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+              <Border BorderBrush="#2F2F2F" BorderThickness="1" Background="#111111">
+                <ScrollViewer Name="SourcePreviewScroll"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              PointerWheelChanged="OnSourcePreviewWheel"
+                              PointerPressed="OnSourcePreviewPanPressed"
+                              PointerMoved="OnSourcePreviewPanMoved"
+                              PointerReleased="OnSourcePreviewPanReleased">
+                  <Canvas Name="SourcePreviewCanvas"
+                          ClipToBounds="True"
+                          PointerPressed="OnSourcePreviewPressed"
+                          PointerMoved="OnSourcePreviewMoved"
+                          PointerReleased="OnSourcePreviewReleased">
+                    <Image Name="SourcePreviewImage"
+                           Stretch="Fill"
+                           Width="{Binding Bounds.Width, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                           Height="{Binding Bounds.Height, RelativeSource={RelativeSource AncestorType=Canvas}}" />
+                    <Border Name="SourceSelectionRect"
+                            IsVisible="False"
+                            BorderBrush="#00E5FF"
+                            BorderThickness="2"
+                            Background="#2200E5FF" />
+                  </Canvas>
+                </ScrollViewer>
+              </Border>
+            </Border>
+          </TabItem>
+          <TabItem Header="Destination BMP">
+            <Border Margin="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+              <Border BorderBrush="#2F2F2F" BorderThickness="1" Background="#111111">
+                <ScrollViewer Name="DestPreviewScroll"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              PointerWheelChanged="OnDestPreviewWheel"
+                              PointerPressed="OnDestPreviewPanPressed"
+                              PointerMoved="OnDestPreviewPanMoved"
+                              PointerReleased="OnDestPreviewPanReleased">
+                  <Canvas Name="DestPreviewCanvas" ClipToBounds="True">
+                    <Image Name="DestPreviewImage"
+                           Stretch="Fill"
+                           Width="{Binding Bounds.Width, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                           Height="{Binding Bounds.Height, RelativeSource={RelativeSource AncestorType=Canvas}}" />
+                    <Border Name="OverlayBorder"
+                            IsVisible="False"
+                            BorderBrush="#FFB300"
+                            BorderThickness="2"
+                            Background="#33FFB300"
+                            PointerPressed="OnOverlayPressed"
+                            PointerMoved="OnOverlayMoved"
+                            PointerReleased="OnOverlayReleased">
+                      <Image Name="OverlayImage" Stretch="Fill" />
+                    </Border>
+                  </Canvas>
+                </ScrollViewer>
+              </Border>
+            </Border>
+          </TabItem>
+          <TabItem Header="Combined BMP">
+            <Border Margin="0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+              <Border BorderBrush="#2F2F2F" BorderThickness="1" Background="#111111">
+                <ScrollViewer Name="CombinedPreviewScroll"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              PointerWheelChanged="OnCombinedPreviewWheel"
+                              PointerPressed="OnCombinedPreviewPanPressed"
+                              PointerMoved="OnCombinedPreviewPanMoved"
+                              PointerReleased="OnCombinedPreviewPanReleased">
+                  <Canvas Name="CombinedPreviewCanvas" ClipToBounds="True">
+                    <Image Name="CombinedPreviewImage"
+                           Stretch="Fill"
+                           Width="{Binding Bounds.Width, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                           Height="{Binding Bounds.Height, RelativeSource={RelativeSource AncestorType=Canvas}}" />
+                    <Border Name="CombinedAnchorMarker"
+                            Width="10"
+                            Height="10"
+                            IsVisible="False"
+                            BorderBrush="#00E5FF"
+                            BorderThickness="2"
+                            Background="#2200E5FF"
+                            IsHitTestVisible="False" />
+                    <Border Name="CombinedOverlayBorder"
+                            IsVisible="False"
+                            BorderBrush="#FFB300"
+                            BorderThickness="2"
+                            Background="#33FFB300"
+                            IsHitTestVisible="False">
+                      <Image Name="CombinedOverlayImage" Stretch="Fill" />
+                    </Border>
+                  </Canvas>
+                </ScrollViewer>
+              </Border>
+            </Border>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </TabItem>
+  </TabControl>
+</UserControl>
