@@ -31,6 +31,9 @@
       <TabItem Header="Tile Colors">
         <views:TileColorMapView />
       </TabItem>
+      <TabItem Header="UOP Pack/Unpack">
+        <views:UopToolsView />
+      </TabItem>
       <TabItem Header="MUL -> BMP">
         <views:MulToBmpView />
       </TabItem>

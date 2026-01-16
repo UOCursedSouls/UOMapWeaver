@@ -1,0 +1,94 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="UOMapWeaver.App.Views.UopToolsView">
+  <TabControl Margin="8">
+    <TabItem Header="Extract UOP">
+      <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="UOP File" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="ExtractUopPathBox" Width="360" TextChanged="OnExtractTextChanged" />
+          <Button Content="Browse" Click="OnBrowseExtractUop" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Extract Type" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <ComboBox Name="ExtractTypeComboBox" Width="220" SelectionChanged="OnExtractTypeChanged" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Output Folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="ExtractOutputFolderBox" Width="360" TextChanged="OnExtractTextChanged" />
+          <Button Content="Browse" Click="OnBrowseExtractOutputFolder" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Name Prefix" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="ExtractBaseNameBox" Width="200" TextChanged="OnExtractTextChanged" />
+          <Button Content="Auto Name" Click="OnAutoExtractName" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+          <Button Name="ExtractButton" Content="Extract" Click="OnExtract" />
+          <TextBlock Name="ExtractStatusText" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Margin="0,8,0,0">
+          <TextBlock Text="UOP name → extracted files" />
+          <ListBox Name="ExtractMappingList" Height="140" />
+        </StackPanel>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Pack UOP">
+      <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Template UOP" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="PackTemplatePathBox" Width="360" TextChanged="OnPackTextChanged" />
+          <Button Content="Browse" Click="OnBrowsePackTemplate" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Input Files" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Add Files" Click="OnAddPackInputs" />
+            <Button Content="Remove Selected" Click="OnRemovePackInput" />
+          </StackPanel>
+          <ListBox Name="PackInputList" Height="120" SelectionMode="Multiple" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Output Folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="PackOutputFolderBox" Width="360" TextChanged="OnPackTextChanged" />
+          <Button Content="Browse" Click="OnBrowsePackOutputFolder" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Output Mode" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <ComboBox Name="PackModeComboBox" Width="220" SelectionChanged="OnPackOptionChanged" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Output Name" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="PackOutputNameBox" Width="220" TextChanged="OnPackTextChanged" />
+          <Button Content="Auto Name" Click="OnAutoPackName" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Preset Name" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <ComboBox Name="PackPresetNameComboBox" Width="260" SelectionChanged="OnPackPresetChanged" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Chunk Size" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="PackChunkSizeBox" Width="120" Watermark="optional" TextChanged="OnPackTextChanged" />
+          <TextBlock Text="bytes" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+          <Button Name="PackButton" Content="Pack" Click="OnPack" />
+          <TextBlock Name="PackStatusText" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </TabItem>
+  </TabControl>
+</UserControl>
