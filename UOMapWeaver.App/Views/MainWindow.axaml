@@ -3,8 +3,8 @@
         xmlns:views="clr-namespace:UOMapWeaver.App.Views"
         x:Class="UOMapWeaver.App.Views.MainWindow"
         Title="UOMapWeaver"
-        Width="1080"
-        Height="820">
+        Width="1240"
+        Height="900">
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />

@@ -2,9 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="UOMapWeaver.App.Views.MapCopyView">
   <TabControl Margin="8">
-    <TabItem Header="Paths">
-      <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-        <Border Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+    <!--Paths-->
+	<TabItem Header="Paths">
+      <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+		<!--Source Map-->
+		<Border Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
           <StackPanel Spacing="6">
             <TextBlock Text="Source Map" FontWeight="Bold" />
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -20,20 +22,30 @@
               <TextBox Name="SourceStaticsPathBox" Width="320" TextChanged="OnSourceTextChanged" Watermark="statics.mul" />
               <Button Content="Browse" Click="OnBrowseSourceStatics" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <CheckBox Name="UseVerdataCheckBox" Content="Use verdata" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-              <TextBox Name="VerdataPathBox" Width="240" TextChanged="OnVerdataTextChanged" Watermark="verdata.mul" />
-              <Button Content="Browse" Click="OnBrowseVerdata" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <CheckBox Name="VerdataTerrainCheckBox" Content="Apply to terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-              <CheckBox Name="VerdataStaticsCheckBox" Content="Apply to statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-              <TextBlock Text="Map fileId" VerticalAlignment="Center" />
-              <TextBox Name="VerdataMapFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
-              <TextBlock Text="Statics fileId" VerticalAlignment="Center" />
-              <TextBox Name="VerdataStaticsFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
-            </StackPanel>
-            <TextBlock Name="VerdataSizeText" />
+			  <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+				  <StackPanel Spacing="6">
+					  <TextBlock Text="Verdata Options" FontWeight="Bold" />
+
+					  <StackPanel Orientation="Horizontal" Spacing="8">
+						  <CheckBox Name="UseVerdataCheckBox" Content="Use verdata" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+						  <TextBox Name="VerdataPathBox" Width="240" TextChanged="OnVerdataTextChanged" Watermark="verdata.mul" />
+						  <Button Content="Browse" Click="OnBrowseVerdata" />
+					  </StackPanel>
+
+					  <StackPanel Orientation="Horizontal" Spacing="8">
+						  <CheckBox Name="VerdataTerrainCheckBox" Content="Apply to terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+						  <CheckBox Name="VerdataStaticsCheckBox" Content="Apply to statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+					  </StackPanel>
+					  <StackPanel Orientation="Horizontal" Spacing="8">
+						  <TextBlock Text="Map fileId" VerticalAlignment="Center" />
+						  <TextBox Name="VerdataMapFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
+						  <TextBlock Text="Statics fileId" VerticalAlignment="Center" />
+						  <TextBox Name="VerdataStaticsFileIdBox" Width="60" Watermark="auto" TextChanged="OnVerdataTextChanged" />
+					  </StackPanel>
+
+					  <TextBlock Name="VerdataSizeText" />
+				  </StackPanel>
+			  </Border>
             <TextBlock Text="Copy Area (From -> To)" Margin="0,8,0,0" />
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox Name="SourceFromXBox" Width="70" Watermark="From X" TextChanged="OnSourceRegionChanged" />
@@ -45,7 +57,23 @@
           </StackPanel>
         </Border>
 
-        <Border Grid.Row="0" Grid.Column="1" Margin="6,0,0,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+		<!--Settings set-->
+		<Border Grid.Row="0" Grid.Column="1" Margin="0,0,0,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
+			<StackPanel Spacing="6">
+				<CheckBox Name="CopyMapCheckBox" Content="Copy map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+				<CheckBox Name="OverwriteTerrainCheckBox" Content="Overwrite terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+				<CheckBox Name="CopyStaticsCheckBox" Content="Copy statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+				<CheckBox Name="OverwriteStaticsCheckBox" Content="Overwrite statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
+				<ComboBox Name="StaticsCopyModeComboBox" Width="200" SelectionChanged="OnOptionChanged" />
+				<ComboBox Name="StaticsLayoutComboBox" Width="200" SelectionChanged="OnOptionChanged" />
+				<TextBlock Text="Statics Z" VerticalAlignment="Center" />
+				<ComboBox Name="StaticsZModeComboBox" Width="160" SelectionChanged="OnOptionChanged" />
+				<TextBox Name="StaticsFixedZBox" Width="60" Watermark="Z" TextChanged="OnFixedZChanged" />
+			</StackPanel>
+		</Border>
+		  
+		<!--Destination Map-->
+        <Border Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8">
           <StackPanel Spacing="6">
             <TextBlock Text="Destination Map" FontWeight="Bold" />
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -70,7 +98,8 @@
           </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
+		<!--BMP Map-->
+        <Border Grid.Row="1" Grid.ColumnSpan="3" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
           <Grid ColumnDefinitions="*,*">
             <StackPanel Spacing="6" Margin="0,0,6,0">
               <TextBlock Text="Source Area BMP" FontWeight="Bold" />
@@ -91,17 +120,22 @@
           </Grid>
         </Border>
 
+		<!--GeneratePreview / Save Map-->
         <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="#3A3A3A" BorderThickness="1" Padding="8" Margin="0,8,0,0">
           <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Save Folder" VerticalAlignment="Center" />
             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
               <TextBox Name="OutputFolderBox" Width="320" TextChanged="OnOutputFolderChanged" />
               <Button Content="Browse" Click="OnBrowseOutputFolder" />
+			  <CheckBox Name="SaveAsNewMapCheckBox" Content="Save as new map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
             </StackPanel>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="Preview Encoding" VerticalAlignment="Center" />
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
               <ComboBox Name="PreviewEncodingComboBox" Width="220" SelectionChanged="OnPreviewEncodingChanged" />
+				<Button Name="PreviewGenerateButton" Content="Generate Preview BMPs" Click="OnGeneratePreview" />
+				<Button Name="CopyButton" Content="Copy Region" Click="OnCopy" />
+				<TextBlock Name="StatusText" VerticalAlignment="Center" />
             </StackPanel>
 
             <TextBlock Name="PreviewMapTransLabel" Grid.Row="2" Grid.Column="0" Text="Preview MapTrans" VerticalAlignment="Center" />
@@ -117,22 +151,6 @@
             </StackPanel>
           </Grid>
         </Border>
-
-        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
-          <CheckBox Name="CopyMapCheckBox" Content="Copy map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-          <CheckBox Name="CopyStaticsCheckBox" Content="Copy statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-          <ComboBox Name="StaticsCopyModeComboBox" Width="200" SelectionChanged="OnOptionChanged" />
-          <ComboBox Name="StaticsLayoutComboBox" Width="200" SelectionChanged="OnOptionChanged" />
-          <TextBlock Text="Statics Z" VerticalAlignment="Center" />
-          <ComboBox Name="StaticsZModeComboBox" Width="160" SelectionChanged="OnOptionChanged" />
-          <TextBox Name="StaticsFixedZBox" Width="60" Watermark="Z" TextChanged="OnFixedZChanged" />
-          <CheckBox Name="OverwriteTerrainCheckBox" Content="Overwrite terrain" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-          <CheckBox Name="OverwriteStaticsCheckBox" Content="Overwrite statics" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-          <CheckBox Name="SaveAsNewMapCheckBox" Content="Save as new map" IsChecked="True" Checked="OnOptionChanged" Unchecked="OnOptionChanged" />
-          <Button Name="PreviewGenerateButton" Content="Generate Preview BMPs" Click="OnGeneratePreview" />
-          <Button Name="CopyButton" Content="Copy Region" Click="OnCopy" />
-          <TextBlock Name="StatusText" VerticalAlignment="Center" />
-        </StackPanel>
       </Grid>
     </TabItem>
 
