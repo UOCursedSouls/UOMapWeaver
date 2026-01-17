@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using UOMapWeaver.App;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Map;
 using UOMapWeaver.Core.TileColors;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -38,7 +39,7 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
     }
 
     private async void OnBrowseJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => JsonPathBox.Text = await PickSaveFileAsync("Select JSON location", "json");
+        => JsonPathBox.Text = await PickSaveFileAsync(this, "Select JSON location", "json");
 
     private void OnLoadJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -74,26 +75,10 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
 
     private async void OnAddMap(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var provider = GetStorageProvider();
-        if (provider is null)
+        var files = await PickFilesAsync(this, "Select map.mul files", new[] { "mul", "uop" });
+        foreach (var path in files)
         {
-            return;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select map.mul files",
-            AllowMultiple = true,
-            FileTypeFilter = new[]
-            {
-                CreateFileTypeFilter("MUL", new[] { "mul", "uop" })
-            }
-        });
-
-        foreach (var file in files)
-        {
-            var path = file.TryGetLocalPath();
-            if (!string.IsNullOrWhiteSpace(path) && !_mapPaths.Contains(path))
+            if (!_mapPaths.Contains(path))
             {
                 _mapPaths.Add(path);
             }
@@ -176,11 +161,7 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
             var logAction = new Action<MapConversionLogEntry>(entry =>
                 Dispatcher.UIThread.Post(() =>
                     AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level))));
-            var progress = new Progress<int>(percent =>
-                Dispatcher.UIThread.Post(() =>
-                {
-                    AppStatus.SetProgress(percent, true);
-                }));
+            var progress = CreateAppProgress();
 
             var saveAction = new Action<TileColorMap>(map =>
             {
@@ -297,77 +278,6 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
         return ModeComboBox.SelectedIndex == 1 ? TileColorMode.Rgb24 : TileColorMode.Indexed8;
     }
 
-    private static AppStatusSeverity MapLogToStatus(MapConversionLogLevel level)
-    {
-        return level switch
-        {
-            MapConversionLogLevel.Error => AppStatusSeverity.Error,
-            MapConversionLogLevel.Warning => AppStatusSeverity.Warning,
-            MapConversionLogLevel.Success => AppStatusSeverity.Success,
-            _ => AppStatusSeverity.Info
-        };
-    }
-
-    private IStorageProvider? GetStorageProvider()
-        => TopLevel.GetTopLevel(this)?.StorageProvider;
-
-    private static FilePickerFileType CreateFileTypeFilter(string name, IEnumerable<string> extensions)
-    {
-        var patterns = extensions
-            .Select(ext => ext.StartsWith('.') ? $"*{ext}" : $"*.{ext}")
-            .ToList();
-
-        return new FilePickerFileType(name)
-        {
-            Patterns = patterns
-        };
-    }
-
-    private async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                CreateFileTypeFilter(string.Join(", ", extensions), extensions)
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private async Task<string?> PickSaveFileAsync(string title, string defaultExtension)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var file = await provider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = title,
-            DefaultExtension = defaultExtension,
-            FileTypeChoices = new[]
-            {
-                new FilePickerFileType($"{defaultExtension.ToUpperInvariant()} files")
-                {
-                    Patterns = new[] { $"*.{defaultExtension}" }
-                }
-            }
-        });
-
-        return file?.TryGetLocalPath();
-    }
-
     private void LoadState()
     {
         _loadingState = true;
@@ -411,31 +321,4 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
         SaveState();
     }
 
-    private static void SetFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
-        {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        var brush = state switch
-        {
-            FieldState.Warning => Brushes.Goldenrod,
-            FieldState.Error => Brushes.IndianRed,
-            _ => Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
-    }
 }

@@ -11,7 +11,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using UOMapWeaver.App;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
@@ -19,6 +18,8 @@ using UOMapWeaver.Core.Map;
 using UOMapWeaver.Core.MapTrans;
 using UOMapWeaver.Core.TileColors;
 using UOMapWeaver.Core.TileReplace;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -57,23 +58,23 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
 
     private async void OnBrowseMapMul(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        MapMulPathBox.Text = await PickFileAsync("Select map.mul", new[] { "mul", "uop" });
+        MapMulPathBox.Text = await PickFileAsync(this, "Select map.mul", new[] { "mul", "uop" });
         AutoPopulateFromMapMul();
         UpdateStatus();
     }
 
     private async void OnBrowseStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => StaIdxPathBox.Text = await PickFileAsync("Select staidx.mul", new[] { "mul" });
+        => StaIdxPathBox.Text = await PickFileAsync(this, "Select staidx.mul", new[] { "mul" });
 
     private async void OnBrowseStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => StaticsPathBox.Text = await PickFileAsync("Select statics.mul", new[] { "mul" });
+        => StaticsPathBox.Text = await PickFileAsync(this, "Select statics.mul", new[] { "mul" });
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync("Select output folder");
+        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
 
     private async void OnBrowseMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync("Select MapTrans profile", new[] { "txt" });
+        var path = await PickFileAsync(this, "Select MapTrans profile", new[] { "txt" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddMapTransOption(path);
@@ -81,14 +82,14 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
     }
 
     private async void OnBrowseTileJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileJsonPathBox.Text = await PickFileAsync("Select Tile Color JSON", new[] { "json" });
+        => TileJsonPathBox.Text = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
 
     private async void OnBrowseTileReplace(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileReplacePathBox.Text = await PickFileAsync("Select tile replace JSON", new[] { "json" });
+        => TileReplacePathBox.Text = await PickFileAsync(this, "Select tile replace JSON", new[] { "json" });
 
     private async void OnLoadPreview(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync("Select BMP", new[] { "bmp" });
+        var path = await PickFileAsync(this, "Select BMP", new[] { "bmp" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             await LoadBmpPreviewAsync(path);
@@ -217,13 +218,7 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
                 }
             }
 
-            var progress = new Progress<int>(percent =>
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    AppStatus.SetProgress(percent, true);
-                });
-            });
+            var progress = CreateAppProgress();
 
             var options = new MapConversionOptions
             {
@@ -588,44 +583,6 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
         return dialog;
     }
 
-    private async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new List<FilePickerFileType>
-            {
-                CreateFileTypeFilter(string.Join(", ", extensions), extensions)
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
-    }
-
     private async Task LoadBmpPreviewAsync(string path)
     {
         if (!File.Exists(path))
@@ -845,21 +802,6 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
 
     private Window GetOwnerWindow()
         => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
-
-    private IStorageProvider? GetStorageProvider()
-        => TopLevel.GetTopLevel(this)?.StorageProvider;
-
-    private static FilePickerFileType CreateFileTypeFilter(string name, IEnumerable<string> extensions)
-    {
-        var patterns = extensions
-            .Select(ext => ext.StartsWith('.') ? $"*{ext}" : $"*.{ext}")
-            .ToList();
-
-        return new FilePickerFileType(name)
-        {
-            Patterns = patterns
-        };
-    }
 
     private void LoadTerrainEncodings()
     {
@@ -1457,75 +1399,6 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
     }
 
     private static string? GetMapSuffix(string baseName) => baseName.Length == 0 ? null : baseName;
-
-    private static void SetFieldState(TextBox box, FieldState state, bool isOptional = false)
-    {
-        if (isOptional && string.IsNullOrWhiteSpace(box.Text))
-        {
-            box.ClearValue(BorderBrushProperty);
-            box.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        ApplyFieldState(box, state);
-    }
-
-    private static void SetFieldState(ComboBox box, FieldState state)
-    {
-        ApplyFieldState(box, state);
-    }
-
-    private static void ApplyFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
-        {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        var brush = state switch
-        {
-            FieldState.Warning => Brushes.Goldenrod,
-            FieldState.Error => Brushes.IndianRed,
-            _ => Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
-    }
-
-    private static AppStatusSeverity MapLogToStatus(MapConversionLogLevel level)
-    {
-        return level switch
-        {
-            MapConversionLogLevel.Error => AppStatusSeverity.Error,
-            MapConversionLogLevel.Warning => AppStatusSeverity.Warning,
-            MapConversionLogLevel.Success => AppStatusSeverity.Success,
-            _ => AppStatusSeverity.Info
-        };
-    }
-
-    private static string FormatFileSize(string path)
-    {
-        try
-        {
-            var info = new FileInfo(path);
-            return $"{info.Length:N0} bytes";
-        }
-        catch
-        {
-            return "unknown";
-        }
-    }
 
     private static string GetEncodingTag(TerrainEncoding encoding)
     {

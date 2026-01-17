@@ -8,11 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using UOMapWeaver.App;
 using UOMapWeaver.Core.Bmp;
@@ -23,6 +21,8 @@ using UOMapWeaver.Core.ClientData;
 using UOMapWeaver.Core.Statics;
 using UOMapWeaver.Core.TileColors;
 using UOMapWeaver.Core.TileReplace;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -97,40 +97,40 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     }
 
     private async void OnBrowseSourceMap(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceMapPathBox.Text = await PickFileAsync("Select source map.mul", new[] { "mul", "uop" });
+        => SourceMapPathBox.Text = await PickFileAsync(this, "Select source map.mul", new[] { "mul", "uop" });
 
     private async void OnBrowseSourceStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceStaIdxPathBox.Text = await PickFileAsync("Select source staidx.mul", new[] { "mul" });
+        => SourceStaIdxPathBox.Text = await PickFileAsync(this, "Select source staidx.mul", new[] { "mul" });
 
     private async void OnBrowseSourceStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceStaticsPathBox.Text = await PickFileAsync("Select source statics.mul", new[] { "mul" });
+        => SourceStaticsPathBox.Text = await PickFileAsync(this, "Select source statics.mul", new[] { "mul" });
 
     private async void OnBrowseVerdata(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => VerdataPathBox.Text = await PickFileAsync("Select verdata.mul", new[] { "mul" });
+        => VerdataPathBox.Text = await PickFileAsync(this, "Select verdata.mul", new[] { "mul" });
 
     private async void OnBrowseSourceClient(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceClientFolderBox.Text = await PickFolderAsync("Select source client folder");
+        => SourceClientFolderBox.Text = await PickFolderAsync(this, "Select source client folder");
 
     private async void OnBrowseDestClient(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestClientFolderBox.Text = await PickFolderAsync("Select destination client folder");
+        => DestClientFolderBox.Text = await PickFolderAsync(this, "Select destination client folder");
 
     private async void OnBrowseDestMap(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestMapPathBox.Text = await PickFileAsync("Select destination map.mul", new[] { "mul", "uop" });
+        => DestMapPathBox.Text = await PickFileAsync(this, "Select destination map.mul", new[] { "mul", "uop" });
 
     private async void OnBrowseDestStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestStaIdxPathBox.Text = await PickFileAsync("Select destination staidx.mul", new[] { "mul" });
+        => DestStaIdxPathBox.Text = await PickFileAsync(this, "Select destination staidx.mul", new[] { "mul" });
 
     private async void OnBrowseDestStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestStaticsPathBox.Text = await PickFileAsync("Select destination statics.mul", new[] { "mul" });
+        => DestStaticsPathBox.Text = await PickFileAsync(this, "Select destination statics.mul", new[] { "mul" });
 
     private async void OnBrowseOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync("Select output folder");
+        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
 
     private async void OnBrowseSourceBmp(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceBmpPathBox.Text = await PickFileAsync("Select source BMP", new[] { "bmp" });
+        => SourceBmpPathBox.Text = await PickFileAsync(this, "Select source BMP", new[] { "bmp" });
 
     private async void OnBrowseDestBmp(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestBmpPathBox.Text = await PickFileAsync("Select destination BMP", new[] { "bmp" });
+        => DestBmpPathBox.Text = await PickFileAsync(this, "Select destination BMP", new[] { "bmp" });
 
     private void OnSourceTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -236,7 +236,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
 
     private async void OnBrowsePreviewMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync("Select MapTrans profile", new[] { "txt" });
+        var path = await PickFileAsync(this, "Select MapTrans profile", new[] { "txt" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddPreviewMapTransOption(path);
@@ -245,7 +245,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     }
 
     private async void OnBrowsePreviewTileJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PreviewTileJsonPathBox.Text = await PickFileAsync("Select Tile Color JSON", new[] { "json" });
+        => PreviewTileJsonPathBox.Text = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
 
     private void OnPreviewTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -773,7 +773,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     }
 
     private async void OnBrowseTileReplace(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileReplacePathBox.Text = await PickFileAsync("Select tile replace JSON", new[] { "json" });
+        => TileReplacePathBox.Text = await PickFileAsync(this, "Select tile replace JSON", new[] { "json" });
 
     private void OnLoadTileReplace(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -3324,32 +3324,6 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         Dispatcher.UIThread.Post(() => AppStatus.SetProgress(percent, true));
     }
 
-    private static string FormatFileSize(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-        {
-            return string.Empty;
-        }
-
-        var size = new FileInfo(path).Length;
-        if (size < 1024)
-        {
-            return $"{size} B";
-        }
-
-        if (size < 1024 * 1024)
-        {
-            return $"{size / 1024d:0.##} KB";
-        }
-
-        if (size < 1024 * 1024 * 1024)
-        {
-            return $"{size / (1024d * 1024):0.##} MB";
-        }
-
-        return $"{size / (1024d * 1024 * 1024):0.##} GB";
-    }
-
     private bool TryLoadVerdata(int width, int height, out VerdataMul? verdata, bool reportToStatus)
     {
         verdata = null;
@@ -3640,50 +3614,6 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     private Window GetOwnerWindow()
         => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
 
-    private IStorageProvider? GetStorageProvider()
-        => TopLevel.GetTopLevel(this)?.StorageProvider;
-
-    private async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType(string.Join(", ", extensions))
-                {
-                    Patterns = extensions.Select(ext => ext.StartsWith('.') ? $"*{ext}" : $"*.{ext}").ToList()
-                }
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
-    }
-
     private readonly record struct RectInt(int X, int Y, int Width, int Height)
     {
         public int Right => X + Width;
@@ -3836,51 +3766,6 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         state.Image.Width = state.Canvas.Width;
         state.Image.Height = state.Canvas.Height;
         state.OnZoomApplied?.Invoke();
-    }
-
-    private static void SetFieldState(TextBox box, FieldState state, bool isOptional = false)
-    {
-        if (isOptional && string.IsNullOrWhiteSpace(box.Text))
-        {
-            box.ClearValue(BorderBrushProperty);
-            box.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        ApplyFieldState(box, state);
-    }
-
-    private static void SetFieldState(ComboBox box, FieldState state)
-    {
-        ApplyFieldState(box, state);
-    }
-
-    private static void ApplyFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
-        {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        var brush = state switch
-        {
-            FieldState.Warning => Brushes.Goldenrod,
-            FieldState.Error => Brushes.IndianRed,
-            _ => Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
     }
 
     private enum PreviewEncoding

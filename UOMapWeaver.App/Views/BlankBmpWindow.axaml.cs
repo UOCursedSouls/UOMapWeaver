@@ -7,12 +7,13 @@ using System.Xml.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using UOMapWeaver.App;
 using UOMapWeaver.App.Defaults;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -40,19 +41,14 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     }
 
     private async void OnBrowsePalette(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PalettePathBox.Text = await PickFileAsync("Select palette BMP", new[] { "bmp" });
+        => PalettePathBox.Text = await PickFileAsync(this, "Select palette BMP", new[] { "bmp" });
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync("Select output folder");
+        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
 
     private async void OnOpenPresets(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var path = GetPresetPath();
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return;
-        }
 
         if (!File.Exists(path))
         {
@@ -183,8 +179,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
 
             var palette = await Task.Run(() => Bmp8Codec.Read(palettePath).Palette, cancelSource.Token);
 
-            IProgress<int> progress = new Progress<int>(percent =>
-                Dispatcher.UIThread.Post(() => AppStatus.SetProgress(percent, true)));
+            IProgress<int> progress = CreateAppProgress();
 
             await Task.Run(() =>
             {
@@ -758,50 +753,6 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     private Window GetOwnerWindow()
         => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
 
-    private IStorageProvider? GetStorageProvider()
-        => TopLevel.GetTopLevel(this)?.StorageProvider;
-
-    private async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType(string.Join(", ", extensions))
-                {
-                    Patterns = extensions.Select(ext => ext.StartsWith('.') ? $"*{ext}" : $"*.{ext}").ToList()
-                }
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
-    }
-
     private static bool HasInvalidFileNameChars(string name)
         => name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0;
 
@@ -1003,48 +954,4 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         public override string ToString() => Name;
     }
 
-    private static void SetFieldState(TextBox box, FieldState state, bool isOptional = false)
-    {
-        if (isOptional && string.IsNullOrWhiteSpace(box.Text))
-        {
-            box.ClearValue(BorderBrushProperty);
-            box.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        ApplyFieldState(box, state);
-    }
-
-    private static void SetFieldState(ComboBox box, FieldState state)
-    {
-        ApplyFieldState(box, state);
-    }
-
-    private static void ApplyFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
-        {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        var brush = state switch
-        {
-            FieldState.Warning => Brushes.Goldenrod,
-            FieldState.Error => Brushes.IndianRed,
-            _ => Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
-    }
 }

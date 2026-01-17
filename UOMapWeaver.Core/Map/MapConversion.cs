@@ -88,15 +88,7 @@ public static class MapConversion
                 altitudePixels[y * width + x] = EncodeAltitude(tile.Z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         ApplyUnknownColor(terrainPalette);
@@ -208,16 +200,7 @@ public static class MapConversion
             terrainWriter.WriteRow(terrainRow);
             altitudeWriter.WriteRow(altitudeRow);
 
-            if (progress != null)
-            {
-                var processed = height - y;
-                var percent = (int)(processed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, height - y, height, ref lastProgress);
         }
 
         if (suppressedErrors > 0)
@@ -306,15 +289,7 @@ public static class MapConversion
                 tiles[index] = new LandTile(tileId, z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         if (suppressedErrors > 0)
@@ -414,15 +389,7 @@ public static class MapConversion
             }
 
             rowsProcessed++;
-            if (progress != null)
-            {
-                var percent = (int)(rowsProcessed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, rowsProcessed, height, ref lastProgress);
         });
 
         if (suppressedErrors > 0)
@@ -509,15 +476,7 @@ public static class MapConversion
                 altitudePixels[y * width + x] = EncodeAltitude(tile.Z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         if (suppressedErrors > 0)
@@ -617,16 +576,7 @@ public static class MapConversion
             terrainWriter.WriteRow(terrainRow);
             altitudeWriter.WriteRow(altitudeRow);
 
-            if (progress != null)
-            {
-                var processed = height - y;
-                var percent = (int)(processed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, height - y, height, ref lastProgress);
         }
 
         if (suppressedErrors > 0)
@@ -671,15 +621,7 @@ public static class MapConversion
                 altitudePixels[y * width + x] = EncodeAltitude(tile.Z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         var terrain = new Bmp24Image(width, height, terrainPixels);
@@ -730,16 +672,7 @@ public static class MapConversion
             terrainWriter.WriteRow(terrainRow);
             altitudeWriter.WriteRow(altitudeRow);
 
-            if (progress != null)
-            {
-                var processed = height - y;
-                var percent = (int)(processed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, height - y, height, ref lastProgress);
         }
 
         return report;
@@ -822,15 +755,7 @@ public static class MapConversion
                 tiles[index] = new LandTile(tileId, z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         if (suppressedErrors > 0)
@@ -929,15 +854,7 @@ public static class MapConversion
             }
 
             rowsProcessed++;
-            if (progress != null)
-            {
-                var percent = (int)(rowsProcessed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, rowsProcessed, height, ref lastProgress);
         });
 
         if (suppressedErrors > 0)
@@ -983,15 +900,7 @@ public static class MapConversion
                 tiles[index] = new LandTile(tileId, z);
             }
 
-            if (progress != null)
-            {
-                var percent = (int)((y + 1) * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, y + 1, height, ref lastProgress);
         }
 
         return (tiles, report);
@@ -1041,18 +950,27 @@ public static class MapConversion
             }
 
             rowsProcessed++;
-            if (progress != null)
-            {
-                var percent = (int)(rowsProcessed * 100.0 / height);
-                if (percent != lastProgress)
-                {
-                    lastProgress = percent;
-                    progress.Report(percent);
-                }
-            }
+            ReportProgress(progress, rowsProcessed, height, ref lastProgress);
         });
 
         return report;
+    }
+
+    private static void ReportProgress(IProgress<int>? progress, int completed, int total, ref int lastProgress)
+    {
+        if (progress is null || total <= 0)
+        {
+            return;
+        }
+
+        var percent = (int)(completed * 100.0 / total);
+        if (percent == lastProgress)
+        {
+            return;
+        }
+
+        lastProgress = percent;
+        progress.Report(percent);
     }
 
     public static bool TryResolveMapSizeFromFile(string mapMulPath, out int width, out int height)
