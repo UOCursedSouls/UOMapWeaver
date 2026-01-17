@@ -13,7 +13,7 @@ public static class StaticPlacementGenerator
         Action<MapConversionLogEntry>? log = null,
         CancellationToken? cancellationToken = null)
     {
-        var terrainPath = Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Terrain.xml");
+        var terrainPath = UOMapWeaverDataPaths.TerrainDefinitionsPath;
         var terrainDefs = StaticPlacementCatalog.LoadTerrainDefinitions(terrainPath);
         if (terrainDefs.Count == 0)
         {
@@ -24,8 +24,7 @@ public static class StaticPlacementGenerator
 
         var placementDefs = StaticPlacementCatalog.LoadStaticDefinitions(new[]
         {
-            UOMapWeaverDataPaths.StaticsRoot,
-            Path.Combine(UOMapWeaverDataPaths.SystemRoot, "TerrainTypes")
+            UOMapWeaverDataPaths.StaticsRoot
         });
 
         if (placementDefs.Count == 0)

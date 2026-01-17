@@ -43,5 +43,7 @@ public static class UOMapWeaverDataPaths
 
     public static string MapDefinitionsPath => Path.Combine(DefinitionsRoot, "map-definitions.json");
 
+    public static string TerrainDefinitionsPath => Path.Combine(DefinitionsRoot, "terrain-definitions.json");
+
     public static string UiStatePath => Path.Combine(DataRoot, "ui-state.json");
 }

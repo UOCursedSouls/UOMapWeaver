@@ -457,7 +457,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         _fillModes.Clear();
         _fillModes.Add(new FillModeOption(FillMode.PaletteIndex, "Palette Index"));
         _fillModes.Add(new FillModeOption(FillMode.Rgb, "RGB"));
-        _fillModes.Add(new FillModeOption(FillMode.TerrainXml, "Terrain.xml"));
+        _fillModes.Add(new FillModeOption(FillMode.TerrainXml, "Terrain.json"));
         FillModeComboBox.ItemsSource = _fillModes;
         FillModeComboBox.SelectedIndex = 0;
     }
@@ -515,7 +515,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         {
             if (FillTerrainComboBox.SelectedItem is not TerrainFillOption terrain)
             {
-                error = "Select a terrain from Terrain.xml.";
+                error = "Select a terrain from Terrain.json.";
                 return false;
             }
 
@@ -569,7 +569,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     private void LoadTerrainOptions()
     {
         _terrainOptions.Clear();
-        var terrainPath = Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Terrain.xml");
+        var terrainPath = UOMapWeaverDataPaths.TerrainDefinitionsPath;
         if (!File.Exists(terrainPath))
         {
             FillTerrainComboBox.ItemsSource = _terrainOptions;

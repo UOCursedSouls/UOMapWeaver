@@ -1074,9 +1074,9 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
 
         if (generateStatics && EmptyStaticsCheckBox.IsChecked != true)
         {
-            var terrainPath = Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Terrain.xml");
+            var terrainPath = UOMapWeaverDataPaths.TerrainDefinitionsPath;
             var staticsAvailable = Directory.Exists(UOMapWeaverDataPaths.StaticsRoot) &&
-                                   Directory.EnumerateFiles(UOMapWeaverDataPaths.StaticsRoot, "*.xml", SearchOption.TopDirectoryOnly).Any();
+                                   Directory.EnumerateFiles(UOMapWeaverDataPaths.StaticsRoot, "*.json", SearchOption.AllDirectories).Any();
             if (!File.Exists(terrainPath) || !staticsAvailable)
             {
                 warnings.Add("Static data missing; will generate empty statics.");

@@ -6,6 +6,7 @@ using System.Text.Json;
 using UOMapWeaver.App.Defaults;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
+using UOMapWeaver.Core.Statics;
 
 namespace UOMapWeaver.App;
 
@@ -33,6 +34,8 @@ internal static class UOMapWeaverDataBootstrapper
 
         EnsureMapPresets();
         EnsureMapDefinitions();
+        EnsureTerrainDefinitionsJson();
+        EnsureStaticPlacementJson();
         EnsureDefaultPalette();
         EnsureDataReadme();
         EnsurePlaceholderReadmes();
@@ -201,7 +204,7 @@ internal static class UOMapWeaverDataBootstrapper
             "Transitions/",
             "  Terrain transition rules and templates.",
             "Statics/",
-            "  Static placement definitions.",
+            "  Static placement definitions (JSON).",
             "Photoshop/",
             "  Photoshop swatches/palettes.",
             "Import Files/",
@@ -222,6 +225,7 @@ internal static class UOMapWeaverDataBootstrapper
             "  map-presets.json (editable list of map sizes for Blank BMP).",
             "Definitions/",
             "  map-definitions.json (used for map size detection).",
+            "  terrain-definitions.json (terrain list used for static placement and fill modes).",
             "Examples/",
             "  Sample inputs/outputs copied from TMP_UtitlityFiles if available."
         };
@@ -236,14 +240,15 @@ internal static class UOMapWeaverDataBootstrapper
             { UOMapWeaverDataPaths.SystemRoot, "System templates and MapTrans profiles live here." },
             { UOMapWeaverDataPaths.MapTransRoot, "MapTrans profiles (.txt) and palette BMPs." },
             { UOMapWeaverDataPaths.TransitionsRoot, "Terrain transition rules and templates." },
-            { UOMapWeaverDataPaths.StaticsRoot, "Static placement definitions." },
+            { UOMapWeaverDataPaths.StaticsRoot, "Static placement definitions (JSON)." },
             { UOMapWeaverDataPaths.PhotoshopRoot, "Photoshop swatches/palettes." },
             { UOMapWeaverDataPaths.ImportRoot, "Import templates and metadata." },
             { UOMapWeaverDataPaths.LoggerRoot, "Legacy logger templates and outputs." },
             { UOMapWeaverDataPaths.ExportRoot, "Export output templates." },
             { UOMapWeaverDataPaths.DeveloperRoot, "Developer reference files." },
             { UOMapWeaverDataPaths.ExamplesRoot, "Examples and sample inputs." },
-            { UOMapWeaverDataPaths.TileReplaceRoot, "Tile replacement JSON files." }
+            { UOMapWeaverDataPaths.TileReplaceRoot, "Tile replacement JSON files." },
+            { UOMapWeaverDataPaths.DefinitionsRoot, "Map and terrain definition JSON files." }
         };
 
         foreach (var (folder, description) in placeholders)
@@ -273,6 +278,22 @@ internal static class UOMapWeaverDataBootstrapper
             return;
         }
 
+        var sourceProfile = FindDefaultMapTransProfile();
+        if (!string.IsNullOrWhiteSpace(sourceProfile) && File.Exists(sourceProfile))
+        {
+            Directory.CreateDirectory(UOMapWeaverDataPaths.MapTransRoot);
+            File.Copy(sourceProfile, fallbackPath, overwrite: true);
+
+            var palette = FindMapTransPalette(Path.GetDirectoryName(sourceProfile));
+            if (!string.IsNullOrWhiteSpace(palette))
+            {
+                var targetPalette = Path.Combine(UOMapWeaverDataPaths.MapTransRoot, "ColorPalette.bmp");
+                File.Copy(palette, targetPalette, overwrite: true);
+            }
+
+            return;
+        }
+
         var lines = new[]
         {
             "// Fallback MapTrans profile created by UOMapWeaver.",
@@ -282,6 +303,122 @@ internal static class UOMapWeaverDataBootstrapper
         };
 
         File.WriteAllLines(fallbackPath, lines);
+    }
+
+    private static string? FindDefaultMapTransProfile()
+    {
+        foreach (var root in FindMapCreatorMapTransRoots())
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            var mod10 = Directory.EnumerateFiles(root, "Mod10.txt", SearchOption.AllDirectories)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(mod10))
+            {
+                return mod10;
+            }
+
+            var fallback = Directory.EnumerateFiles(root, "*.txt", SearchOption.AllDirectories)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(fallback))
+            {
+                return fallback;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindMapTransPalette(string? mapTransRoot)
+    {
+        if (string.IsNullOrWhiteSpace(mapTransRoot))
+        {
+            return null;
+        }
+
+        var local = Path.Combine(mapTransRoot, "ColorPalette.bmp");
+        if (File.Exists(local))
+        {
+            return local;
+        }
+
+        var candidate = Directory.EnumerateFiles(mapTransRoot, "ColorPalette.bmp", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return candidate;
+    }
+
+    private static IEnumerable<string> FindMapCreatorMapTransRoots()
+    {
+        foreach (var root in FindMapCreatorEngineRoots())
+        {
+            var path = Path.Combine(root, "MapTrans");
+            if (Directory.Exists(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static void EnsureTerrainDefinitionsJson()
+    {
+        var path = UOMapWeaverDataPaths.TerrainDefinitionsPath;
+        if (File.Exists(path) && new FileInfo(path).Length > 0)
+        {
+            return;
+        }
+
+        var records = TryLoadTerrainDefinitionsFromMapCreator();
+        if (records.Count == 0)
+        {
+            records = new List<TerrainDefinitionRecord>
+            {
+                new("Grass", 3),
+                new("Sand", 22),
+                new("Shallow Water", 102),
+                new("Deep Water", 168),
+                new("Rock", 556)
+            };
+        }
+
+        StaticPlacementJson.SaveTerrainRecords(path, records);
+    }
+
+    private static void EnsureStaticPlacementJson()
+    {
+        if (Directory.Exists(UOMapWeaverDataPaths.StaticsRoot) &&
+            Directory.EnumerateFiles(UOMapWeaverDataPaths.StaticsRoot, "*.json", SearchOption.AllDirectories).Any())
+        {
+            return;
+        }
+
+        var sourceRoots = FindMapCreatorTerrainTypeRoots();
+        foreach (var root in sourceRoots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            foreach (var xmlPath in Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories))
+            {
+                var definition = StaticPlacementXmlImporter.LoadStaticDefinitionFromXml(xmlPath);
+                if (definition is null)
+                {
+                    continue;
+                }
+
+                var relative = Path.GetRelativePath(root, xmlPath);
+                var jsonPath = Path.Combine(UOMapWeaverDataPaths.StaticsRoot, Path.ChangeExtension(relative, ".json"));
+                StaticPlacementJson.SaveStaticDefinition(jsonPath, definition);
+            }
+        }
     }
 
     private static void CopyDefaultsFromOutput()
@@ -297,12 +434,6 @@ internal static class UOMapWeaverDataBootstrapper
         CopyDirectoryIfPresent(Path.Combine(defaultsRoot, "UOLandscaper", "Data"), UOMapWeaverDataPaths.DataRoot);
 
         var mapCreatorEngine = Path.Combine(defaultsRoot, "MapCreator", "Engine");
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "MapTrans"), UOMapWeaverDataPaths.MapTransRoot);
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "RoughEdge"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "RoughEdge"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "Templates"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Templates"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "TerrainTypes"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "TerrainTypes"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "Transitions"), UOMapWeaverDataPaths.TransitionsRoot);
-        CopyFilesIfPresent(mapCreatorEngine, UOMapWeaverDataPaths.SystemRoot, "*.xml");
 
         CopyDirectoryIfPresent(Path.Combine(defaultsRoot, "Examples"), UOMapWeaverDataPaths.ExamplesRoot);
     }
@@ -322,12 +453,70 @@ internal static class UOMapWeaverDataBootstrapper
         CopyDirectoryIfPresent(uolData, UOMapWeaverDataPaths.DataRoot);
 
         var mapCreatorEngine = Path.Combine(tmpRoot, "MapCreator_golfin", "MapCompiler", "Engine");
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "MapTrans"), UOMapWeaverDataPaths.MapTransRoot);
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "RoughEdge"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "RoughEdge"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "Templates"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Templates"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "TerrainTypes"), Path.Combine(UOMapWeaverDataPaths.SystemRoot, "TerrainTypes"));
-        CopyDirectoryIfPresent(Path.Combine(mapCreatorEngine, "Transitions"), UOMapWeaverDataPaths.TransitionsRoot);
-        CopyFilesIfPresent(mapCreatorEngine, UOMapWeaverDataPaths.SystemRoot, "*.xml");
+    }
+
+    private static List<TerrainDefinitionRecord> TryLoadTerrainDefinitionsFromMapCreator()
+    {
+        var candidates = FindMapCreatorTerrainXmlCandidates();
+        foreach (var path in candidates)
+        {
+            var records = StaticPlacementXmlImporter.LoadTerrainRecordsFromXml(path);
+            if (records.Count > 0)
+            {
+                return records;
+            }
+        }
+
+        return new List<TerrainDefinitionRecord>();
+    }
+
+    private static IEnumerable<string> FindMapCreatorTerrainXmlCandidates()
+    {
+        foreach (var root in FindMapCreatorEngineRoots())
+        {
+            var path = Path.Combine(root, "Terrain.xml");
+            if (File.Exists(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static IEnumerable<string> FindMapCreatorTerrainTypeRoots()
+    {
+        foreach (var root in FindMapCreatorEngineRoots())
+        {
+            var path = Path.Combine(root, "TerrainTypes");
+            if (Directory.Exists(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static IEnumerable<string> FindMapCreatorEngineRoots()
+    {
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (!string.IsNullOrWhiteSpace(desktop))
+        {
+            roots.Add(Path.Combine(desktop, "MapCreator_golfin", "MapCompiler", "Engine"));
+        }
+
+        var tmpRoot = FindTmpUtilityRoot();
+        if (!string.IsNullOrWhiteSpace(tmpRoot))
+        {
+            roots.Add(Path.Combine(tmpRoot, "MapCreator_golfin", "MapCompiler", "Engine"));
+        }
+
+        foreach (var baseDir in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            var candidate = Path.Combine(baseDir, "MapCreator_golfin", "MapCompiler", "Engine");
+            roots.Add(candidate);
+        }
+
+        return roots.Where(Directory.Exists);
     }
 
     private static string? FindTmpUtilityRoot()
