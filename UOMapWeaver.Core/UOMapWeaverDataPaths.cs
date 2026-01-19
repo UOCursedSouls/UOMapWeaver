@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Diagnostics;
 
 namespace UOMapWeaver.Core;
 
@@ -7,7 +8,40 @@ public static class UOMapWeaverDataPaths
 {
     public const string DataFolderName = "UOMapWeaverData";
 
-    public static string DataRoot => Path.Combine(AppContext.BaseDirectory, DataFolderName);
+    public static string DataRoot => Path.Combine(GetExecutableDirectory(), DataFolderName);
+
+    private static string GetExecutableDirectory()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                var directory = Path.GetDirectoryName(processPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    return directory;
+                }
+            }
+
+            using var process = Process.GetCurrentProcess();
+            var mainModulePath = process.MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(mainModulePath))
+            {
+                var directory = Path.GetDirectoryName(mainModulePath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    return directory;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore process path failures and fall back.
+        }
+
+        return AppContext.BaseDirectory;
+    }
 
     public static string SystemRoot => Path.Combine(DataRoot, "System");
 
