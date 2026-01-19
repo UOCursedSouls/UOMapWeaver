@@ -39,16 +39,48 @@ public sealed partial class GenStaticsView : UserControl, IAppStateView
     }
 
     private async void OnBrowseMap(object? sender, RoutedEventArgs e)
-        => MapPathBox.Text = await PickFileAsync(this, "Select map.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select map.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            MapPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTerrain(object? sender, RoutedEventArgs e)
-        => TerrainBmpBox.Text = await PickFileAsync(this, "Select Terrain.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Terrain.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TerrainBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseAltitude(object? sender, RoutedEventArgs e)
-        => AltitudeBmpBox.Text = await PickFileAsync(this, "Select Altitude.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Altitude.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            AltitudeBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseOutput(object? sender, RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private void OnTextChanged(object? sender, TextChangedEventArgs e)
     {

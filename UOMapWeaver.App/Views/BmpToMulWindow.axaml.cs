@@ -61,10 +61,26 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     }
 
     private async void OnBrowseAltitude(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => AltitudeBmpBox.Text = await PickFileAsync(this, "Select Altitude.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Altitude.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            AltitudeBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTerrain(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TerrainBmpBox.Text = await PickFileAsync(this, "Select Terrain.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Terrain.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TerrainBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnConvertTerrainTo24Bit(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -146,7 +162,15 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     }
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -154,6 +178,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddMapTransOption(path);
+            UpdateStatus();
+            SaveState();
         }
     }
 
@@ -163,6 +189,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddPaletteOption(path);
+            UpdateStatus();
+            SaveState();
         }
     }
 
@@ -205,7 +233,15 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     }
 
     private async void OnBrowseTileJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileJsonPathBox.Text = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
+    {
+        var path = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TileJsonPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnLoadPreview(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

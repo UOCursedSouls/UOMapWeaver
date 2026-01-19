@@ -37,16 +37,48 @@ public sealed partial class UopToolsView : UserControl, IAppStateView
     }
 
     private async void OnBrowseExtractUop(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => ExtractUopPathBox.Text = await PickFileAsync(this, "Select UOP file", new[] { "uop" });
+    {
+        var path = await PickFileAsync(this, "Select UOP file", new[] { "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ExtractUopPathBox.Text = path;
+            UpdateExtractState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseExtractOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => ExtractOutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ExtractOutputFolderBox.Text = path;
+            UpdateExtractState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowsePackTemplate(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PackTemplatePathBox.Text = await PickFileAsync(this, "Select template UOP", new[] { "uop" });
+    {
+        var path = await PickFileAsync(this, "Select template UOP", new[] { "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            PackTemplatePathBox.Text = path;
+            UpdatePackState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowsePackOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PackOutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            PackOutputFolderBox.Text = path;
+            UpdatePackState();
+            SaveState();
+        }
+    }
 
     private async void OnAddPackInputs(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

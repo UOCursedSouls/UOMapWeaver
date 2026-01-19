@@ -47,10 +47,26 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     }
 
     private async void OnBrowsePalette(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PalettePathBox.Text = await PickFileAsync(this, "Select palette BMP", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select palette BMP", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            PalettePathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnOpenPresets(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

@@ -56,7 +56,7 @@
           <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
             <Button Name="GenerateButton" Content="Generate Statics" Click="OnGenerate" />
             <Button Name="CheckDataButton" Content="Check Data" Click="OnCheckData" />
-            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
+            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
             <TextBlock Name="StatusTextPreview" VerticalAlignment="Center" />
           </StackPanel>
           <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />

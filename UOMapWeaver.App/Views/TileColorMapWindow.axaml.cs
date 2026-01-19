@@ -50,28 +50,92 @@ public sealed partial class TileColorMapView : UserControl, IAppStateView
     }
 
     private async void OnBrowseJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => JsonPathBox.Text = await PickSaveFileAsync(this, "Select JSON location", "json");
+    {
+        var path = await PickSaveFileAsync(this, "Select JSON location", "json");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            JsonPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTerrainXml(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TerrainXmlBox.Text = await PickFileAsync(this, "Select Terrain.xml", new[] { "xml" });
+    {
+        var path = await PickFileAsync(this, "Select Terrain.xml", new[] { "xml" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TerrainXmlBox.Text = path;
+            UpdateImportStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTerrainTypes(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TerrainTypesBox.Text = await PickFolderAsync(this, "Select TerrainTypes folder");
+    {
+        var path = await PickFolderAsync(this, "Select TerrainTypes folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TerrainTypesBox.Text = path;
+            UpdateImportStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseImportOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => ImportOutputBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ImportOutputBox.Text = path;
+            UpdateImportStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseFolderTransitions(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => FolderTransitionsBox.Text = await PickFolderAsync(this, "Select Transitions folder");
+    {
+        var path = await PickFolderAsync(this, "Select Transitions folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            FolderTransitionsBox.Text = path;
+            UpdateFolderStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseFolderTemplates(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => FolderTemplatesBox.Text = await PickFolderAsync(this, "Select Templates folder");
+    {
+        var path = await PickFolderAsync(this, "Select Templates folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            FolderTemplatesBox.Text = path;
+            UpdateFolderStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseFolderRoughEdge(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => FolderRoughEdgeBox.Text = await PickFolderAsync(this, "Select RoughEdge folder");
+    {
+        var path = await PickFolderAsync(this, "Select RoughEdge folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            FolderRoughEdgeBox.Text = path;
+            UpdateFolderStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseFolderOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => FolderOutputBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            FolderOutputBox.Text = path;
+            UpdateFolderStatus();
+            SaveState();
+        }
+    }
 
     private void OnLoadJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

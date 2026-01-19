@@ -63,19 +63,48 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
 
     private async void OnBrowseMapMul(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        MapMulPathBox.Text = await PickFileAsync(this, "Select map.mul", new[] { "mul", "uop" });
-        AutoPopulateFromMapMul();
-        UpdateStatus();
+        var path = await PickFileAsync(this, "Select map.mul", new[] { "mul", "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            MapMulPathBox.Text = path;
+            AutoPopulateFromMapMul();
+            UpdateStatus();
+            SaveState();
+        }
     }
 
     private async void OnBrowseStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => StaIdxPathBox.Text = await PickFileAsync(this, "Select staidx.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select staidx.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            StaIdxPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => StaticsPathBox.Text = await PickFileAsync(this, "Select statics.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select statics.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            StaticsPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -83,6 +112,8 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddMapTransOption(path);
+            UpdateStatus();
+            SaveState();
         }
     }
 
@@ -92,6 +123,8 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddPaletteOption(path);
+            UpdateStatus();
+            SaveState();
         }
     }
 
@@ -231,10 +264,26 @@ public sealed partial class MulToBmpView : UserControl, IAppStateView
     }
 
     private async void OnBrowseTileJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileJsonPathBox.Text = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
+    {
+        var path = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TileJsonPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTileReplace(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileReplacePathBox.Text = await PickFileAsync(this, "Select tile replace JSON", new[] { "json" });
+    {
+        var path = await PickFileAsync(this, "Select tile replace JSON", new[] { "json" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TileReplacePathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnLoadPreview(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

@@ -97,40 +97,136 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     }
 
     private async void OnBrowseSourceMap(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceMapPathBox.Text = await PickFileAsync(this, "Select source map.mul", new[] { "mul", "uop" });
+    {
+        var path = await PickFileAsync(this, "Select source map.mul", new[] { "mul", "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SourceMapPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseSourceStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceStaIdxPathBox.Text = await PickFileAsync(this, "Select source staidx.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select source staidx.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SourceStaIdxPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseSourceStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceStaticsPathBox.Text = await PickFileAsync(this, "Select source statics.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select source statics.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SourceStaticsPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseVerdata(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => VerdataPathBox.Text = await PickFileAsync(this, "Select verdata.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select verdata.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            VerdataPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseSourceClient(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceClientFolderBox.Text = await PickFolderAsync(this, "Select source client folder");
+    {
+        var path = await PickFolderAsync(this, "Select source client folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SourceClientFolderBox.Text = path;
+            UpdateClientInfo();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseDestClient(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestClientFolderBox.Text = await PickFolderAsync(this, "Select destination client folder");
+    {
+        var path = await PickFolderAsync(this, "Select destination client folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            DestClientFolderBox.Text = path;
+            UpdateClientInfo();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseDestMap(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestMapPathBox.Text = await PickFileAsync(this, "Select destination map.mul", new[] { "mul", "uop" });
+    {
+        var path = await PickFileAsync(this, "Select destination map.mul", new[] { "mul", "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            DestMapPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseDestStaIdx(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestStaIdxPathBox.Text = await PickFileAsync(this, "Select destination staidx.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select destination staidx.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            DestStaIdxPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseDestStatics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestStaticsPathBox.Text = await PickFileAsync(this, "Select destination statics.mul", new[] { "mul" });
+    {
+        var path = await PickFileAsync(this, "Select destination statics.mul", new[] { "mul" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            DestStaticsPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync(this, "Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseSourceBmp(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => SourceBmpPathBox.Text = await PickFileAsync(this, "Select source BMP", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select source BMP", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SourceBmpPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseDestBmp(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => DestBmpPathBox.Text = await PickFileAsync(this, "Select destination BMP", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select destination BMP", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            DestBmpPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private void OnSourceTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -228,6 +324,13 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     }
 
     private void OnPreviewEncodingChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdatePreviewEncodingVisibility();
+        UpdateStatus();
+        SaveState();
+    }
+
+    private void OnPreviewSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         UpdatePreviewEncodingVisibility();
         UpdateStatus();
