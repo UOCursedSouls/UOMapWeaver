@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using UOMapWeaver.Core.Bmp;
 using UOMapWeaver.Core.Map;
 
@@ -59,7 +60,7 @@ public sealed class TileColorMapBuilder
         IEnumerable<string> mapMulPaths,
         Action<MapConversionLogEntry>? log = null,
         bool stopOnError = false,
-        IProgress<int>? progress = null,
+        IProgress<TileColorProgress>? progress = null,
         CancellationToken? cancellationToken = null,
         Action<TileColorMap>? partialSave = null
     )
@@ -87,12 +88,23 @@ public sealed class TileColorMapBuilder
         }
 
         long processedTiles = 0;
-        var lastPercent = -1;
+        var lastReport = Stopwatch.StartNew();
+        var lastReportedTiles = 0L;
+        var lastHeartbeat = Stopwatch.StartNew();
+        var lastSave = Stopwatch.StartNew();
+        var lastSaveTiles = 0L;
 
         if (totalTiles > 0)
         {
             log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Info,
                 $"Total tiles to scan: {totalTiles:N0}."));
+        }
+
+        if (partialSave != null)
+        {
+            partialSave(BuildMap());
+            log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Info,
+                "Initial JSON created."));
         }
 
         foreach (var mapPath in mapMulPaths)
@@ -115,24 +127,64 @@ public sealed class TileColorMapBuilder
             log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Info,
                 $"Scanning {Path.GetFileName(mapPath)} ({width}x{height})."));
 
-            using var reader = new MapMulRowReader(mapPath, width, height);
-            var row = new LandTile[width];
-            for (var y = 0; y < height; y++)
-            {
-                cancellationToken?.ThrowIfCancellationRequested();
-                reader.ReadRow(y, row);
+            var blockWidth = width / MapMul.BlockSize;
+            var blockHeight = height / MapMul.BlockSize;
+            var buffer = new byte[MapMul.LandBlockBytes];
 
-                for (var x = 0; x < width; x++)
+            var totalBlocks = blockWidth * blockHeight;
+            using var stream = new FileStream(
+                mapPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                MapMul.LandBlockBytes * 8,
+                FileOptions.SequentialScan);
+            for (var blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
+            {
+                var bx = blockIndex / blockHeight;
+                var by = blockIndex % blockHeight;
+                if (log != null && blockIndex % 2000 == 0)
                 {
-                    var tile = row[x];
+                    log(new MapConversionLogEntry(
+                        MapConversionLogLevel.Info,
+                        $"Reading block {blockIndex:N0}/{totalBlocks:N0} (bx={bx}, by={by})."));
+                }
+
+                cancellationToken?.ThrowIfCancellationRequested();
+                stream.ReadExactly(buffer, 0, buffer.Length);
+
+                if (log != null && blockIndex % 2000 == 0)
+                {
+                    log(new MapConversionLogEntry(
+                        MapConversionLogLevel.Info,
+                        $"Read block {blockIndex:N0}/{totalBlocks:N0} (bx={bx}, by={by})."));
+                }
+
+                var span = buffer.AsSpan(MapMul.LandHeaderBytes);
+                for (var i = 0; i < MapMul.LandTilesPerBlock; i++)
+                {
+                    if ((i & 0x0F) == 0)
+                    {
+                        cancellationToken?.ThrowIfCancellationRequested();
+                    }
+
+                    var tileId = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(
+                        span.Slice(i * MapMul.LandTileBytes, 2));
+
+                    var addedTile = false;
                     if (_mode == TileColorMode.Indexed8)
                     {
-                        if (_tileToIndex.ContainsKey(tile.TileId))
+                        if (_tileToIndex.ContainsKey(tileId))
                         {
+                            processedTiles++;
+                            ReportProgress(progress, totalTiles, ref lastReport, ref lastReportedTiles, processedTiles);
+                            ReportHeartbeat(log, totalTiles, ref lastHeartbeat, processedTiles, bx, by, blockWidth, blockHeight);
+
+                            cancellationToken?.ThrowIfCancellationRequested();
                             continue;
                         }
 
-                        if (!TryAssignIndexed(tile.TileId, out var error))
+                        if (!TryAssignIndexed(tileId, out var error))
                         {
                             LogError(log, error, stopOnError);
                             if (stopOnError)
@@ -140,15 +192,21 @@ public sealed class TileColorMapBuilder
                                 return BuildMap();
                             }
                         }
+                        addedTile = true;
                     }
                     else
                     {
-                        if (_tileToColor.ContainsKey(tile.TileId))
+                        if (_tileToColor.ContainsKey(tileId))
                         {
+                            processedTiles++;
+                            ReportProgress(progress, totalTiles, ref lastReport, ref lastReportedTiles, processedTiles);
+                            ReportHeartbeat(log, totalTiles, ref lastHeartbeat, processedTiles, bx, by, blockWidth, blockHeight);
+
+                            cancellationToken?.ThrowIfCancellationRequested();
                             continue;
                         }
 
-                        if (!TryAssignRgb(tile.TileId, out var error))
+                        if (!TryAssignRgb(tileId, out var error))
                         {
                             LogError(log, error, stopOnError);
                             if (stopOnError)
@@ -156,27 +214,28 @@ public sealed class TileColorMapBuilder
                                 return BuildMap();
                             }
                         }
+                        addedTile = true;
                     }
-                }
 
-                if (progress != null && totalTiles > 0)
-                {
-                    processedTiles += width;
-                    var percent = (int)(processedTiles * 100 / totalTiles);
-                    if (percent != lastPercent)
+                    processedTiles++;
+                    ReportProgress(progress, totalTiles, ref lastReport, ref lastReportedTiles, processedTiles);
+                    ReportHeartbeat(log, totalTiles, ref lastHeartbeat, processedTiles, bx, by, blockWidth, blockHeight);
+
+                    cancellationToken?.ThrowIfCancellationRequested();
+
+                    if (addedTile && partialSave != null)
                     {
-                        lastPercent = percent;
-                        progress.Report(percent);
+                        if (processedTiles - lastSaveTiles >= 250_000 || lastSave.ElapsedMilliseconds >= 15000)
+                        {
+                            partialSave(BuildMap());
+                            lastSaveTiles = processedTiles;
+                            lastSave.Restart();
+                        }
                     }
                 }
             }
 
-            if (partialSave != null)
-            {
-                partialSave(BuildMap());
-                log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Info,
-                    $"Partial JSON saved after {Path.GetFileName(mapPath)}."));
-            }
+            cancellationToken?.ThrowIfCancellationRequested();
         }
 
         return BuildMap();
@@ -280,4 +339,60 @@ public sealed class TileColorMapBuilder
             throw new MapConversionAbortException(message);
         }
     }
+
+    private static void ReportProgress(
+        IProgress<TileColorProgress>? progress,
+        long totalTiles,
+        ref Stopwatch lastReport,
+        ref long lastReportedTiles,
+        long processedTiles)
+    {
+        if (progress == null || totalTiles <= 0)
+        {
+            return;
+        }
+
+        if (processedTiles - lastReportedTiles < 50000 && lastReport.ElapsedMilliseconds < 250)
+        {
+            return;
+        }
+
+        lastReportedTiles = processedTiles;
+        lastReport.Restart();
+        progress.Report(new TileColorProgress(
+            processedTiles * 100.0 / totalTiles,
+            processedTiles,
+            totalTiles));
+    }
+
+    private static void ReportHeartbeat(
+        Action<MapConversionLogEntry>? log,
+        long totalTiles,
+        ref Stopwatch lastHeartbeat,
+        long processedTiles,
+        int blockX,
+        int blockY,
+        int blockWidth,
+        int blockHeight)
+    {
+        if (log == null || totalTiles <= 0)
+        {
+            return;
+        }
+
+        if (lastHeartbeat.ElapsedMilliseconds < 5000)
+        {
+            return;
+        }
+
+        var percent = processedTiles * 100.0 / totalTiles;
+        var blockIndex = blockX * blockHeight + blockY;
+        var totalBlocks = blockWidth * blockHeight;
+        log(new MapConversionLogEntry(
+            MapConversionLogLevel.Info,
+            $"Tile JSON progress: {percent:0.00}% ({processedTiles:N0}/{totalTiles:N0}) block {blockIndex:N0}/{totalBlocks:N0} (bx={blockX}, by={blockY})."));
+        lastHeartbeat.Restart();
+    }
+
+
 }

@@ -40,6 +40,9 @@
       <TabItem Header="BMP -> MUL">
         <views:BmpToMulView />
       </TabItem>
+      <TabItem Header="Gen Statics">
+        <views:GenStaticsView />
+      </TabItem>
       <TabItem Header="Blank BMP">
         <views:BlankBmpView />
       </TabItem>

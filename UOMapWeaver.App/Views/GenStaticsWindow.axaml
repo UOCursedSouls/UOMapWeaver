@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:UOMapWeaver.App.Views"
+             x:DataType="local:GenStaticsView"
+             x:Class="UOMapWeaver.App.Views.GenStaticsView">
+  <TabControl Margin="8">
+    <TabItem Header="Inputs">
+      <ScrollViewer>
+        <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Map.mul" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBox Name="MapPathBox" Width="360" TextChanged="OnTextChanged" />
+            <Button Content="Browse" Click="OnBrowseMap" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Map Size" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Name="MapSizeText" />
+
+          <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Name="TransitionStaticsCheckBox"
+                    Content="Transition statics (Terrain XML)"
+                    IsChecked="False"
+                    Checked="OnCheckChanged"
+                    Unchecked="OnCheckChanged" />
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Terrain.bmp" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBox Name="TerrainBmpBox" Width="360" TextChanged="OnTextChanged" />
+            <Button Content="Browse" Click="OnBrowseTerrain" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Altitude.bmp" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBox Name="AltitudeBmpBox" Width="360" TextChanged="OnTextChanged" />
+            <Button Content="Browse" Click="OnBrowseAltitude" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Output Folder" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBox Name="OutputFolderBox" Width="360" TextChanged="OnTextChanged" />
+            <Button Content="Browse" Click="OnBrowseOutput" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="StaIdx.mul" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="6" Grid.Column="1" Name="StaIdxPathText" />
+
+          <TextBlock Grid.Row="7" Grid.Column="0" Text="Statics.mul" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="7" Grid.Column="1" Name="StaticsPathText" />
+
+          <TextBlock Grid.Row="8" Grid.Column="0" Text="Statics layout" VerticalAlignment="Center" />
+          <ComboBox Grid.Row="8" Grid.Column="1" Name="StaticsLayoutComboBox" Width="220" SelectionChanged="OnSelectionChanged" />
+
+          <CheckBox Grid.Row="9" Grid.ColumnSpan="2" Name="RandomStaticsCheckBox" Content="Random statics (TerrainTypes)" IsChecked="True" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+          <CheckBox Grid.Row="10" Grid.ColumnSpan="2" Name="ImportStaticsCheckBox" Content="Import statics from Import Files" IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+          <CheckBox Grid.Row="11" Grid.ColumnSpan="2" Name="EmptyStaticsCheckBox" Content="Empty statics" IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+
+          <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+            <Button Name="GenerateButton" Content="Generate Statics" Click="OnGenerate" />
+            <Button Name="CheckDataButton" Content="Check Data" Click="OnCheckData" />
+            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+            <TextBlock Name="StatusTextPreview" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />
+        </Grid>
+      </ScrollViewer>
+    </TabItem>
+    <TabItem Header="Biome Overrides">
+      <ScrollViewer>
+        <StackPanel Margin="8" Spacing="8">
+          <CheckBox Name="OverrideEnabledCheckBox"
+                    Content="Enable biome overrides"
+                    IsChecked="False"
+                    Checked="OnCheckChanged"
+                    Unchecked="OnCheckChanged" />
+          <TextBlock Name="OverrideSummaryText" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="220,200,220,120,*" RowDefinitions="Auto">
+            <TextBlock Grid.Column="0" Text="Terrain" FontWeight="Bold" />
+            <TextBlock Grid.Column="1" Text="Current XML" FontWeight="Bold" />
+            <TextBlock Grid.Column="2" Text="Override XML" FontWeight="Bold" />
+            <TextBlock Grid.Column="3" Text="Chance" FontWeight="Bold" />
+            <TextBlock Grid.Column="4" Text="Notes" FontWeight="Bold" />
+          </Grid>
+          <ItemsControl ItemsSource="{Binding BiomeOverrides}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:BiomeOverrideRow">
+                <Grid ColumnDefinitions="220,200,220,120,*" RowDefinitions="Auto" Margin="0,2,0,2">
+                  <TextBlock Grid.Column="0" Text="{Binding TerrainName}" />
+                  <TextBlock Grid.Column="1" Text="{Binding DefaultDefinition}" />
+                  <ComboBox Grid.Column="2"
+                            ItemsSource="{Binding AvailableDefinitions}"
+                            SelectedItem="{Binding SelectedDefinition, Mode=TwoWay}"
+                            Width="200" />
+                  <TextBox Grid.Column="3" Text="{Binding ChanceOverride, Mode=TwoWay}" Width="90" />
+                  <TextBlock Grid.Column="4" Text="{Binding Status}" Foreground="Tomato" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+  </TabControl>
+</UserControl>

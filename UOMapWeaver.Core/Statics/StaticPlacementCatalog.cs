@@ -1,13 +1,19 @@
-using System.Globalization;
-using System.Xml.Linq;
-
 namespace UOMapWeaver.Core.Statics;
 
 public static class StaticPlacementCatalog
 {
     public static Dictionary<string, StaticPlacementDefinition> LoadStaticDefinitions(IEnumerable<string> roots)
     {
+        return LoadStaticDefinitions(roots, out _);
+    }
+
+    public static Dictionary<string, StaticPlacementDefinition> LoadStaticDefinitions(
+        IEnumerable<string> roots,
+        out StaticPlacementSourceInfo info)
+    {
         var results = new Dictionary<string, StaticPlacementDefinition>(StringComparer.OrdinalIgnoreCase);
+        var loadedXml = 0;
+
         foreach (var root in roots)
         {
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
@@ -15,7 +21,7 @@ public static class StaticPlacementCatalog
                 continue;
             }
 
-            foreach (var file in Directory.EnumerateFiles(root, "*.xml", SearchOption.TopDirectoryOnly))
+            foreach (var file in Directory.EnumerateFiles(root, "*.xml", SearchOption.AllDirectories))
             {
                 var name = Path.GetFileNameWithoutExtension(file);
                 if (results.ContainsKey(name))
@@ -23,59 +29,51 @@ public static class StaticPlacementCatalog
                     continue;
                 }
 
-                var definition = TryLoadStaticDefinition(file);
+                var definition = StaticPlacementXmlImporter.LoadStaticDefinitionFromXml(file);
                 if (definition != null)
                 {
                     results[name] = definition;
+                    loadedXml++;
                 }
             }
         }
 
+        info = new StaticPlacementSourceInfo(0, loadedXml, null);
         return results;
     }
 
     public static List<TerrainDefinition> LoadTerrainDefinitions(string terrainPath)
     {
-        var results = new List<TerrainDefinition>();
-        if (!File.Exists(terrainPath))
-        {
-            return results;
-        }
+        return LoadTerrainDefinitions(terrainPath, out _);
+    }
 
-        XDocument doc;
-        try
-        {
-            doc = XDocument.Load(terrainPath);
-        }
-        catch
-        {
-            return results;
-        }
+    public static List<TerrainDefinition> LoadTerrainDefinitions(string terrainPath, out string? sourcePath)
+    {
+        sourcePath = null;
 
-        var root = doc.Root;
-        if (root is null)
+        var folder = Path.GetDirectoryName(terrainPath) ?? string.Empty;
+        var xmlCandidates = new[]
         {
-            return results;
-        }
+            Path.Combine(folder, "terrain-definitions.xml"),
+            Path.Combine(folder, "Terrain.xml")
+        };
 
-        foreach (var element in root.Elements("Terrain"))
+        foreach (var xmlPath in xmlCandidates)
         {
-            var name = element.Attribute("Name")?.Value?.Trim();
-            var tileIdText = element.Attribute("TileID")?.Value;
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(tileIdText))
+            if (!File.Exists(xmlPath))
             {
                 continue;
             }
 
-            if (!TryParseUShort(tileIdText, out var tileId))
-            {
-                continue;
-            }
-
-            results.Add(new TerrainDefinition(name, tileId));
+            var records = StaticPlacementXmlImporter.LoadTerrainRecordsFromXml(xmlPath);
+            sourcePath = xmlPath;
+            return records
+                .Where(record => !string.IsNullOrWhiteSpace(record.Name))
+                .Select(record => new TerrainDefinition(record.Name!.Trim(), record.TileId, record.Random == true))
+                .ToList();
         }
 
-        return results;
+        return new List<TerrainDefinition>();
     }
 
     public static Dictionary<ushort, StaticPlacementDefinition> BuildTileIdLookup(
@@ -83,6 +81,7 @@ public static class StaticPlacementCatalog
         IReadOnlyDictionary<string, StaticPlacementDefinition> placements)
     {
         var results = new Dictionary<ushort, StaticPlacementDefinition>();
+        var normalizedLookup = BuildNormalizedLookup(placements);
         foreach (var terrain in terrains)
         {
             if (terrain.Name.Contains("Without Static", StringComparison.OrdinalIgnoreCase))
@@ -90,103 +89,180 @@ public static class StaticPlacementCatalog
                 continue;
             }
 
-            if (!placements.TryGetValue(terrain.Name, out var definition))
+            if (!TryResolveDefinition(terrain.Name, placements, normalizedLookup, out var definition))
             {
                 continue;
             }
 
-            results.TryAdd(terrain.TileId, definition);
+            AddTileId(results, terrain.TileId, definition);
+            if (terrain.Random)
+            {
+                for (var i = 1; i <= 3; i++)
+                {
+                    AddTileId(results, (ushort)(terrain.TileId + i), definition);
+                }
+            }
         }
 
         return results;
     }
 
-    private static StaticPlacementDefinition? TryLoadStaticDefinition(string path)
+    internal static Dictionary<string, StaticPlacementDefinition> BuildNormalizedLookupForOverrides(
+        IReadOnlyDictionary<string, StaticPlacementDefinition> placements)
     {
-        XDocument doc;
-        try
-        {
-            doc = XDocument.Load(path);
-        }
-        catch
-        {
-            return null;
-        }
-
-        var root = doc.Root;
-        if (root is null || !root.Name.LocalName.Equals("RandomStatics", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var chanceText = root.Attribute("Chance")?.Value;
-        var chance = 0;
-        if (!string.IsNullOrWhiteSpace(chanceText) && int.TryParse(chanceText, out var parsedChance))
-        {
-            chance = parsedChance;
-        }
-
-        var groups = new List<StaticPlacementGroup>();
-        foreach (var element in root.Elements("Statics"))
-        {
-            var weightText = element.Attribute("Freq")?.Value;
-            if (!int.TryParse(weightText, out var weight) || weight <= 0)
-            {
-                continue;
-            }
-
-            var items = new List<StaticPlacementItem>();
-            foreach (var itemElement in element.Elements("Static"))
-            {
-                var tileText = itemElement.Attribute("TileID")?.Value;
-                if (string.IsNullOrWhiteSpace(tileText) || !TryParseUShort(tileText, out var tileId))
-                {
-                    continue;
-                }
-
-                var x = ParseInt(itemElement.Attribute("X")?.Value);
-                var y = ParseInt(itemElement.Attribute("Y")?.Value);
-                var zValue = ParseInt(itemElement.Attribute("Z")?.Value);
-                var hueValue = ParseInt(itemElement.Attribute("Hue")?.Value);
-                var z = zValue < sbyte.MinValue ? sbyte.MinValue : zValue > sbyte.MaxValue ? sbyte.MaxValue : (sbyte)zValue;
-                var hue = hueValue < 0
-                    ? (ushort)0
-                    : hueValue > ushort.MaxValue
-                        ? ushort.MaxValue
-                        : (ushort)hueValue;
-
-                items.Add(new StaticPlacementItem(tileId, x, y, z, hue));
-            }
-
-            if (items.Count > 0)
-            {
-                groups.Add(new StaticPlacementGroup(weight, items));
-            }
-        }
-
-        var name = Path.GetFileNameWithoutExtension(path);
-        return new StaticPlacementDefinition(name, chance, groups);
+        return BuildNormalizedLookup(placements);
     }
 
-    private static bool TryParseUShort(string value, out ushort result)
+    internal static bool TryResolveDefinitionName(
+        string name,
+        IReadOnlyDictionary<string, StaticPlacementDefinition> placements,
+        IReadOnlyDictionary<string, StaticPlacementDefinition> normalizedLookup,
+        out StaticPlacementDefinition definition)
     {
-        result = 0;
-        var text = value.Trim();
-        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            text = text[2..];
-        }
-
-        if (text.Any(c => char.IsLetter(c)))
-        {
-            return ushort.TryParse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
-        }
-
-        return ushort.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+        return TryResolveDefinition(name, placements, normalizedLookup, out definition);
     }
 
-    private static int ParseInt(string? value)
+    private static void AddTileId(
+        Dictionary<ushort, StaticPlacementDefinition> results,
+        ushort tileId,
+        StaticPlacementDefinition definition)
     {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : 0;
+        if (!results.ContainsKey(tileId))
+        {
+            results[tileId] = definition;
+        }
+    }
+
+    private static Dictionary<string, StaticPlacementDefinition> BuildNormalizedLookup(
+        IReadOnlyDictionary<string, StaticPlacementDefinition> placements)
+    {
+        var normalized = new Dictionary<string, StaticPlacementDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in placements)
+        {
+            var key = NormalizeName(kvp.Key);
+            if (!normalized.ContainsKey(key))
+            {
+                normalized[key] = kvp.Value;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static bool TryResolveDefinition(
+        string terrainName,
+        IReadOnlyDictionary<string, StaticPlacementDefinition> placements,
+        IReadOnlyDictionary<string, StaticPlacementDefinition> normalizedLookup,
+        out StaticPlacementDefinition definition)
+    {
+        definition = default!;
+        if (placements.TryGetValue(terrainName, out var direct) && direct is not null)
+        {
+            definition = direct;
+            return true;
+        }
+
+        var normalized = NormalizeName(terrainName);
+        if (normalizedLookup.TryGetValue(normalized, out var normalizedMatch) && normalizedMatch is not null)
+        {
+            definition = normalizedMatch;
+            return true;
+        }
+
+        var fallback = NormalizeByKeyword(normalized);
+        if (!string.IsNullOrWhiteSpace(fallback) &&
+            normalizedLookup.TryGetValue(fallback, out var fallbackMatch) &&
+            fallbackMatch is not null)
+        {
+            definition = fallbackMatch;
+            return true;
+        }
+
+        return false;
+    }
+
+    internal static bool TryResolveDefinitionForReport(
+        string terrainName,
+        IReadOnlyDictionary<string, StaticPlacementDefinition> placements)
+    {
+        if (placements.Count == 0)
+        {
+            return false;
+        }
+
+        var normalizedLookup = BuildNormalizedLookup(placements);
+        return TryResolveDefinition(terrainName, placements, normalizedLookup, out _);
+    }
+
+    private static string NormalizeName(string name)
+    {
+        var normalized = name.Trim();
+        normalized = normalized.Replace("  ", " ");
+        normalized = normalized.Replace(" Without Static", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace(" without Static", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace(" Embankment", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace(" (Dark)", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace(" (NS)", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace(" (EW)", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("Rough ", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("High ", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("Low ", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("Dark ", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("Light ", "", StringComparison.OrdinalIgnoreCase);
+        normalized = normalized.Replace("  ", " ");
+        return normalized.Trim();
+    }
+
+    private static string NormalizeByKeyword(string normalized)
+    {
+        var lower = normalized.ToLowerInvariant();
+        if (lower.Contains("water"))
+        {
+            return string.Empty;
+        }
+
+        if (lower.Contains("grass"))
+        {
+            return "Grass";
+        }
+
+        if (lower.Contains("forest"))
+        {
+            return "Forest";
+        }
+
+        if (lower.Contains("snow"))
+        {
+            return "Snow";
+        }
+
+        if (lower.Contains("sand"))
+        {
+            return "Sand";
+        }
+
+        if (lower.Contains("beach"))
+        {
+            return "Beach";
+        }
+
+        if (lower.Contains("jungle"))
+        {
+            return "Jungle";
+        }
+
+        if (lower.Contains("swamp"))
+        {
+            return "Swamp";
+        }
+
+        if (lower.Contains("furrow"))
+        {
+            return "Furrows";
+        }
+
+        return string.Empty;
     }
 }
+
+public readonly record struct StaticPlacementSourceInfo(int JsonCount, int XmlCount, string? TerrainXmlPath);

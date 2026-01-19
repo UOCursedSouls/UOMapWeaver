@@ -11,9 +11,15 @@ public static class UOMapWeaverDataPaths
 
     public static string SystemRoot => Path.Combine(DataRoot, "System");
 
-    public static string MapTransRoot => Path.Combine(SystemRoot, "MapTrans");
+    public static string MapTransRoot => Path.Combine(DataRoot, "MapTrans");
 
     public static string TransitionsRoot => Path.Combine(DataRoot, "Transitions");
+
+    public static string TemplatesRoot => Path.Combine(DataRoot, "Templates");
+
+    public static string RoughEdgeRoot => Path.Combine(DataRoot, "RoughEdge");
+
+    public static string TerrainTypesRoot => Path.Combine(DataRoot, "TerrainTypes");
 
     public static string StaticsRoot => Path.Combine(DataRoot, "Statics");
 
@@ -37,11 +43,11 @@ public static class UOMapWeaverDataPaths
 
     public static string DefinitionsRoot => Path.Combine(DataRoot, "Definitions");
 
-    public static string ExamplesRoot => Path.Combine(DataRoot, "Examples");
-
     public static string MapPresetsPath => Path.Combine(PresetsRoot, "map-presets.json");
 
     public static string MapDefinitionsPath => Path.Combine(DefinitionsRoot, "map-definitions.json");
+
+    public static string TerrainDefinitionsPath => Path.Combine(DataRoot, "Terrain.xml");
 
     public static string UiStatePath => Path.Combine(DataRoot, "ui-state.json");
 }

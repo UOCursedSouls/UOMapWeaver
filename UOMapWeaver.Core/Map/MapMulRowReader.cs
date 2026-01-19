@@ -29,6 +29,11 @@ public sealed class MapMulRowReader : IDisposable
 
     public void ReadRow(int y, Span<LandTile> row)
     {
+        ReadRow(y, row, null);
+    }
+
+    public void ReadRow(int y, Span<LandTile> row, CancellationToken? cancellationToken)
+    {
         if (_disposed)
         {
             throw new ObjectDisposedException(nameof(MapMulRowReader));
@@ -49,9 +54,17 @@ public sealed class MapMulRowReader : IDisposable
 
         for (var bx = 0; bx < _blockWidth; bx++)
         {
+            cancellationToken?.ThrowIfCancellationRequested();
             var offset = (long)(bx * _blockHeight + blockY) * MapMul.LandBlockBytes;
             _stream.Seek(offset, SeekOrigin.Begin);
-            _stream.ReadExactly(_buffer, 0, _buffer.Length);
+            if (cancellationToken.HasValue)
+            {
+                ReadExactlyWithCancellation(_buffer, 0, _buffer.Length, cancellationToken.Value);
+            }
+            else
+            {
+                _stream.ReadExactly(_buffer, 0, _buffer.Length);
+            }
 
             var span = _buffer.AsSpan(MapMul.LandHeaderBytes);
             for (var localX = 0; localX < MapMul.BlockSize; localX++)
@@ -61,6 +74,23 @@ public sealed class MapMulRowReader : IDisposable
                 var z = unchecked((sbyte)span[i * MapMul.LandTileBytes + 2]);
                 row[bx * MapMul.BlockSize + localX] = new LandTile(tileId, z);
             }
+        }
+    }
+
+    private void ReadExactlyWithCancellation(byte[] buffer, int offset, int count, CancellationToken token)
+    {
+        var read = 0;
+        while (read < count)
+        {
+            token.ThrowIfCancellationRequested();
+            var chunk = _stream.ReadAsync(buffer, offset + read, count - read, token)
+                .GetAwaiter().GetResult();
+            if (chunk == 0)
+            {
+                throw new EndOfStreamException("Unexpected end of map.mul while reading.");
+            }
+
+            read += chunk;
         }
     }
 

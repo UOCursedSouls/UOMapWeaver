@@ -11,14 +11,15 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using UOMapWeaver.App;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
 using UOMapWeaver.Core.Map;
 using UOMapWeaver.Core.MapTrans;
-using UOMapWeaver.Core.Statics;
 using UOMapWeaver.Core.TileColors;
+using UOMapWeaver.Core.Statics;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -26,6 +27,7 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
 {
     private Bitmap? _previewBitmap;
     private readonly List<MapTransOption> _mapTransOptions = new();
+    private readonly List<PaletteOption> _paletteOptions = new();
     private readonly List<TerrainEncodingOption> _terrainEncodings = new();
     private string _previewWarning = string.Empty;
     private const long LargeMapPixelThreshold = 20_000_000;
@@ -42,42 +44,208 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         InitializeComponent();
         LoadTerrainEncodings();
         LoadMapTransOptions();
+        LoadPaletteOptions();
         LoadState();
         UpdateStatus();
         StopOnErrorCheckBox.IsCheckedChanged += (_, _) => SaveState();
-        PreviewScroll.SizeChanged += (_, _) =>
+        if (PreviewScroll != null)
         {
-            if (!_previewManualZoom)
+            PreviewScroll.SizeChanged += (_, _) =>
             {
-                FitPreviewToViewport();
-            }
-        };
+                if (!_previewManualZoom)
+                {
+                    FitPreviewToViewport();
+                }
+            };
+        }
     }
 
     private async void OnBrowseAltitude(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => AltitudeBmpBox.Text = await PickFileAsync("Select Altitude.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Altitude.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            AltitudeBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseTerrain(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TerrainBmpBox.Text = await PickFileAsync("Select Terrain.bmp", new[] { "bmp" });
+    {
+        var path = await PickFileAsync(this, "Select Terrain.bmp", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TerrainBmpBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
+
+    private async void OnConvertTerrainTo24Bit(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var sourcePath = TerrainBmpBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            StatusText.Text = "Terrain.bmp not found.";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetError(StatusText.Text);
+            return;
+        }
+
+        if (!BmpCodec.TryReadInfo(sourcePath, out _, out _, out var bits))
+        {
+            StatusText.Text = "Terrain.bmp format not detected.";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetError(StatusText.Text);
+            return;
+        }
+
+        if (bits == 24)
+        {
+            StatusText.Text = "Terrain.bmp is already 24-bit.";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetInfo(StatusText.Text);
+            return;
+        }
+
+        if (bits != 8)
+        {
+            StatusText.Text = "Terrain.bmp must be 8-bit to convert.";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetError(StatusText.Text);
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
+        var name = Path.GetFileNameWithoutExtension(sourcePath);
+        var outputPath = Path.Combine(directory, $"{name}_24bit.bmp");
+
+        if (!await ConfirmOverwriteAsync("Overwrite 24-bit BMP?", outputPath))
+        {
+            StatusText.Text = "Conversion cancelled.";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetWarning(StatusText.Text);
+            return;
+        }
+
+        try
+        {
+            var image8 = await Task.Run(() => Bmp8Codec.Read(sourcePath));
+            var pixels = new byte[image8.Width * image8.Height * 3];
+            for (var i = 0; i < image8.Pixels.Length; i++)
+            {
+                var entry = image8.Palette[image8.Pixels[i]];
+                var offset = i * 3;
+                pixels[offset] = entry.Red;
+                pixels[offset + 1] = entry.Green;
+                pixels[offset + 2] = entry.Blue;
+            }
+
+            var image24 = new Bmp24Image(image8.Width, image8.Height, pixels);
+            await Task.Run(() => Bmp24Codec.Write(outputPath, image24));
+
+            TerrainBmpBox.Text = outputPath;
+            StatusText.Text = $"Saved 24-bit BMP: {Path.GetFileName(outputPath)}";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetSuccess(StatusText.Text);
+            AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Success);
+            UpdateStatus();
+            SaveState();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Convert error: {ex.Message}";
+            StatusTextPreview.Text = StatusText.Text;
+            AppStatus.SetError(StatusText.Text);
+        }
+    }
 
     private async void OnBrowseOutput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => OutputFolderBox.Text = await PickFolderAsync("Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            OutputFolderBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync("Select MapTrans profile", new[] { "txt" });
+        var path = await PickFileAsync(this, "Select MapTrans profile", new[] { "txt", "json" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddMapTransOption(path);
+            UpdateStatus();
+            SaveState();
+        }
+    }
+
+    private async void OnBrowsePalette(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var path = await PickFileAsync(this, "Select palette BMP", new[] { "bmp" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            AddPaletteOption(path);
+            UpdateStatus();
+            SaveState();
+        }
+    }
+
+    private void OnConvertMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var selected = GetSelectedMapTransPath();
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            StatusText.Text = "Select a MapTrans profile.";
+            AppStatus.SetError(StatusText.Text);
+            return;
+        }
+
+        if (!selected.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "MapTrans is already JSON.";
+            AppStatus.SetInfo(StatusText.Text);
+            return;
+        }
+
+        try
+        {
+            var profile = MapTransParser.LoadFromFile(selected);
+            if (selected.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            {
+                AppStatus.AppendLog($"MapTrans loaded from TXT: {Path.GetFileName(selected)}", AppStatusSeverity.Warning);
+            }
+            var jsonPath = Path.ChangeExtension(selected, ".json");
+            var paletteFile = profile.PalettePath is null ? null : Path.GetFileName(profile.PalettePath);
+            MapTransJsonSerializer.Save(jsonPath, profile, paletteFile);
+            AddMapTransOption(jsonPath);
+            StatusText.Text = $"Saved {Path.GetFileName(jsonPath)}.";
+            AppStatus.SetSuccess(StatusText.Text);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"MapTrans convert error: {ex.Message}";
+            AppStatus.SetError(StatusText.Text);
         }
     }
 
     private async void OnBrowseTileJson(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => TileJsonPathBox.Text = await PickFileAsync("Select Tile Color JSON", new[] { "json" });
+    {
+        var path = await PickFileAsync(this, "Select Tile Color JSON", new[] { "json" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            TileJsonPathBox.Text = path;
+            UpdateStatus();
+            SaveState();
+        }
+    }
 
     private async void OnLoadPreview(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync("Select BMP", new[] { "bmp" });
+        var path = await PickFileAsync(this, "Select BMP", new[] { "bmp" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             await LoadBmpPreviewAsync(path);
@@ -95,6 +263,9 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         var useTileJson = encoding == TerrainEncoding.TileJson;
         var useMapTrans = encoding == TerrainEncoding.MapTrans;
         var useTileIndex = encoding == TerrainEncoding.TileIndexRgb;
+        var useTerrainXml = encoding == TerrainEncoding.TerrainXml;
+        var useTransitionStatics = useTerrainXml && TransitionStaticsCheckBox.IsChecked == true;
+        var paletteOverridePath = GetSelectedPalettePath();
         var selected = GetSelectedMapTransPath();
         if (useMapTrans && string.IsNullOrWhiteSpace(selected))
         {
@@ -131,32 +302,29 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             var terrainBmpPath = TerrainBmpBox.Text!.Trim();
             var outputFolder = OutputFolderBox.Text!.Trim();
             var mapPath = Path.Combine(outputFolder, "map.mul");
-            var staIdxPath = Path.Combine(outputFolder, "staidx.mul");
-            var staticsPath = Path.Combine(outputFolder, "statics.mul");
+            string? staticsPath = null;
+            string? staidxPath = null;
+            if (useTransitionStatics)
+            {
+                var mapName = Path.GetFileNameWithoutExtension(mapPath);
+                if (!TryResolveStaticsNames(mapName, out var staticsName, out var staidxName))
+                {
+                    staticsName = "statics.mul";
+                    staidxName = "staidx.mul";
+                }
 
-            if (GenerateStaticsCheckBox.IsChecked == true)
-            {
-                if (!await ConfirmOverwriteAsync("Overwrite MUL files?", mapPath, staIdxPath, staticsPath))
-                {
-                    StatusText.Text = "Conversion cancelled.";
-                    StatusTextPreview.Text = StatusText.Text;
-                    AppStatus.SetWarning(StatusText.Text);
-                    AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Warning);
-                    AppStatus.SetCancelSource(null);
-                    return;
-                }
+                staticsPath = Path.Combine(outputFolder, staticsName);
+                staidxPath = Path.Combine(outputFolder, staidxName);
             }
-            else
+
+            if (!await ConfirmOverwriteAsync("Overwrite output files?", staidxPath is null ? new[] { mapPath } : new[] { mapPath, staidxPath, staticsPath! }))
             {
-                if (!await ConfirmOverwriteAsync("Overwrite MUL files?", mapPath))
-                {
-                    StatusText.Text = "Conversion cancelled.";
-                    StatusTextPreview.Text = StatusText.Text;
-                    AppStatus.SetWarning(StatusText.Text);
-                    AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Warning);
-                    AppStatus.SetCancelSource(null);
-                    return;
-                }
+                StatusText.Text = "Conversion cancelled.";
+                StatusTextPreview.Text = StatusText.Text;
+                AppStatus.SetWarning(StatusText.Text);
+                AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Warning);
+                AppStatus.SetCancelSource(null);
+                return;
             }
 
             TileColorMap? tileMap = null;
@@ -195,6 +363,14 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             else if (useMapTrans)
             {
                 profile = await Task.Run(() => MapTransParser.LoadFromFile(selected!));
+                if (selected!.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    AppStatus.AppendLog($"MapTrans loaded from TXT: {Path.GetFileName(selected)}", AppStatusSeverity.Warning);
+                }
+                if (!string.IsNullOrWhiteSpace(paletteOverridePath) && File.Exists(paletteOverridePath))
+                {
+                    profile = new MapTransProfile(profile.Name, profile.Entries, paletteOverridePath);
+                }
             }
 
             if (!BmpCodec.TryReadInfo(altitudeBmpPath, out var altitudeWidth, out var altitudeHeight, out var altitudeBits) ||
@@ -228,6 +404,15 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             if (useMapTrans && terrainBits != 8)
             {
                 StatusText.Text = "Terrain.bmp must be 8-bit for MapTrans encoding.";
+                StatusTextPreview.Text = StatusText.Text;
+                AppStatus.SetError(StatusText.Text);
+                AppStatus.SetCancelSource(null);
+                return;
+            }
+
+            if (useTerrainXml && terrainBits != 24)
+            {
+                StatusText.Text = "Terrain.bmp must be 24-bit for Terrain XML encoding.";
                 StatusTextPreview.Text = StatusText.Text;
                 AppStatus.SetError(StatusText.Text);
                 AppStatus.SetCancelSource(null);
@@ -275,7 +460,7 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 return;
             }
 
-            var useStreaming = UseStreaming(terrainWidth, terrainHeight);
+            var useStreaming = UseStreaming(terrainWidth, terrainHeight) || useTerrainXml;
 
             if (useStreaming)
             {
@@ -286,6 +471,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 AppStatus.AppendLog($"Altitude.bmp size: {FormatFileSize(AltitudeBmpBox.Text)}", AppStatusSeverity.Info);
                 AppStatus.AppendLog($"Terrain size: {terrainWidth}x{terrainHeight}", AppStatusSeverity.Info);
                 AppStatus.AppendLog($"Encoding: {encoding}", AppStatusSeverity.Info);
+                AppStatus.AppendLog($"Terrain.bmp bits: {terrainBits}", AppStatusSeverity.Info);
+                AppStatus.AppendLog($"Altitude.bmp bits: {altitudeBits}", AppStatusSeverity.Info);
                 if (useTileJson)
                 {
                     AppStatus.AppendLog($"Tile JSON: {TileJsonPathBox.Text}", AppStatusSeverity.Info);
@@ -293,17 +480,54 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 else if (useMapTrans)
                 {
                     AppStatus.AppendLog($"MapTrans: {selected}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog(
+                        $"MapTrans palette: {(string.IsNullOrWhiteSpace(profile?.PalettePath) ? "(none)" : profile!.PalettePath)}",
+                        AppStatusSeverity.Info);
                 }
-                AppStatus.AppendLog($"Output folder: {outputFolder}", AppStatusSeverity.Info);
-                AppStatus.AppendLog($"Generate statics: {GenerateStaticsCheckBox.IsChecked == true}", AppStatusSeverity.Info);
-
-                var streamProgress = new Progress<int>(percent =>
+                else if (useTerrainXml)
                 {
-                    Dispatcher.UIThread.Post(() =>
+                    AppStatus.AppendLog($"Terrain.xml: {Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml")}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog($"Transitions: {UOMapWeaverDataPaths.TransitionsRoot}", AppStatusSeverity.Info);
+                }
+                if (useMapTrans && !string.IsNullOrWhiteSpace(paletteOverridePath))
+                {
+                    AppStatus.AppendLog($"Palette override: {paletteOverridePath}", AppStatusSeverity.Info);
+                    if (File.Exists(paletteOverridePath))
                     {
-                        AppStatus.SetProgress(percent, true);
-                    });
-                });
+                        try
+                        {
+                            var paletteImage = Bmp8Codec.Read(paletteOverridePath);
+                            var unique = paletteImage.Palette
+                                .Select(entry => (entry.Red << 16) | (entry.Green << 8) | entry.Blue)
+                                .Distinct()
+                                .Count();
+                            AppStatus.AppendLog(
+                                $"Palette info: {paletteImage.Width}x{paletteImage.Height}, entries {paletteImage.Palette.Length}, unique {unique}.",
+                                AppStatusSeverity.Info);
+                            if (unique < 200)
+                            {
+                                AppStatus.AppendLog(
+                                    $"Palette warning: only {unique} unique colors; MapTrans 8-bit may show color drift.",
+                                    AppStatusSeverity.Warning);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            AppStatus.AppendLog($"Palette info error: {ex.Message}", AppStatusSeverity.Warning);
+                        }
+                    }
+                }
+                AppStatus.AppendLog($"Output map.mul: {mapPath}", AppStatusSeverity.Info);
+                AppStatus.AppendLog($"Output folder: {outputFolder}", AppStatusSeverity.Info);
+                if (useTransitionStatics)
+                {
+                    AppStatus.AppendLog($"Output staidx.mul: {staidxPath}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog($"Output statics.mul: {staticsPath}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog("Statics layout: ColumnMajor", AppStatusSeverity.Info);
+                }
+                LogMissingBmpToMulData(encoding);
+
+                var streamProgress = CreateAppProgress();
 
                 var streamOptions = new MapConversionOptions
                 {
@@ -313,7 +537,39 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 };
 
                 MapConversionReport streamReport;
-                if (useTileIndex)
+                if (useTerrainXml)
+                {
+                    if (useTransitionStatics)
+                    {
+                        streamReport = await Task.Run(() => MapConversion.ConvertTerrainXmlBmpToMulFromFilesWithStatics(
+                            terrainBmpPath,
+                            altitudeBmpPath,
+                            mapPath,
+                            staidxPath!,
+                            staticsPath!,
+                            Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml"),
+                            UOMapWeaverDataPaths.TransitionsRoot,
+                            StaticsLayout.ColumnMajor,
+                            streamProgress,
+                            entry => AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level)),
+                            streamOptions
+                        ), cancelSource.Token);
+                    }
+                    else
+                    {
+                        streamReport = await Task.Run(() => MapConversion.ConvertTerrainXmlBmpToMulFromFiles(
+                            terrainBmpPath,
+                            altitudeBmpPath,
+                            mapPath,
+                            Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml"),
+                            UOMapWeaverDataPaths.TransitionsRoot,
+                            streamProgress,
+                            entry => AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level)),
+                            streamOptions
+                        ), cancelSource.Token);
+                    }
+                }
+                else if (useTileIndex)
                 {
                     streamReport = await Task.Run(() => MapConversion.ConvertTileIndexBmpToMulFromFiles(
                         terrainBmpPath,
@@ -349,21 +605,6 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                     ), cancelSource.Token);
                 }
 
-                if (GenerateStaticsCheckBox.IsChecked == true)
-                {
-                    if (EmptyStaticsCheckBox.IsChecked == true)
-                    {
-                        await Task.Run(() => StaticMulCodec.WriteEmptyStatics(staIdxPath, staticsPath, terrainWidth, terrainHeight), cancelSource.Token);
-                        AppStatus.AppendLog("Generated empty statics.", AppStatusSeverity.Info);
-                    }
-                    else
-                    {
-                        await Task.Run(() => StaticMulCodec.WriteEmptyStatics(staIdxPath, staticsPath, terrainWidth, terrainHeight), cancelSource.Token);
-                        AppStatus.AppendLog("Large map: generated empty statics (populated statics require full tile data).",
-                            AppStatusSeverity.Warning);
-                    }
-                }
-
                 var streamReportSummary = streamReport.MissingTerrainTiles == 0
                     ? "No missing tiles."
                     : $"Missing tiles: {streamReport.MissingTerrainTiles:N0}.";
@@ -390,6 +631,15 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             else
             {
                 terrain = await Task.Run(() => Bmp8Codec.Read(terrainBmpPath));
+            }
+
+            if (useMapTrans && !string.IsNullOrWhiteSpace(profile?.PalettePath))
+            {
+                var mismatch = CountPaletteMismatch(profile.PalettePath!, terrain?.Palette);
+                if (mismatch > 0)
+                {
+                    AppStatus.AppendLog($"Palette mismatch entries: {mismatch}.", AppStatusSeverity.Warning);
+                }
             }
 
             var terrainWidthValue = terrain?.Width ?? terrain24?.Width ?? 0;
@@ -421,6 +671,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             AppStatus.AppendLog($"Altitude.bmp size: {FormatFileSize(altitudeBmpPath)}", AppStatusSeverity.Info);
             AppStatus.AppendLog($"Terrain size: {terrainWidthValue}x{terrainHeightValue}", AppStatusSeverity.Info);
             AppStatus.AppendLog($"Encoding: {encoding}", AppStatusSeverity.Info);
+            AppStatus.AppendLog($"Terrain.bmp bits: {terrainBits}", AppStatusSeverity.Info);
+            AppStatus.AppendLog($"Altitude.bmp bits: {altitudeBits}", AppStatusSeverity.Info);
             if (useTileJson)
             {
                 AppStatus.AppendLog($"Tile JSON: {TileJsonPathBox.Text}", AppStatusSeverity.Info);
@@ -428,17 +680,43 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             else if (useMapTrans)
             {
                 AppStatus.AppendLog($"MapTrans: {selected}", AppStatusSeverity.Info);
+                AppStatus.AppendLog(
+                    $"MapTrans palette: {(string.IsNullOrWhiteSpace(profile?.PalettePath) ? "(none)" : profile!.PalettePath)}",
+                    AppStatusSeverity.Info);
             }
-            AppStatus.AppendLog($"Output folder: {outputFolder}", AppStatusSeverity.Info);
-            AppStatus.AppendLog($"Generate statics: {GenerateStaticsCheckBox.IsChecked == true}", AppStatusSeverity.Info);
-
-            var progress = new Progress<int>(percent =>
+            if (!string.IsNullOrWhiteSpace(paletteOverridePath))
             {
-                Dispatcher.UIThread.Post(() =>
+                AppStatus.AppendLog($"Palette override: {paletteOverridePath}", AppStatusSeverity.Info);
+                if (File.Exists(paletteOverridePath))
                 {
-                    AppStatus.SetProgress(percent, true);
-                });
-            });
+                    try
+                    {
+                        var paletteImage = Bmp8Codec.Read(paletteOverridePath);
+                        var unique = paletteImage.Palette
+                            .Select(entry => (entry.Red << 16) | (entry.Green << 8) | entry.Blue)
+                            .Distinct()
+                            .Count();
+                        AppStatus.AppendLog(
+                            $"Palette info: {paletteImage.Width}x{paletteImage.Height}, entries {paletteImage.Palette.Length}, unique {unique}.",
+                            AppStatusSeverity.Info);
+                        if (unique < 200)
+                        {
+                            AppStatus.AppendLog(
+                                $"Palette warning: only {unique} unique colors; MapTrans 8-bit may show color drift.",
+                                AppStatusSeverity.Warning);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppStatus.AppendLog($"Palette info error: {ex.Message}", AppStatusSeverity.Warning);
+                    }
+                }
+            }
+            AppStatus.AppendLog($"Output map.mul: {mapPath}", AppStatusSeverity.Info);
+            AppStatus.AppendLog($"Output folder: {outputFolder}", AppStatusSeverity.Info);
+            LogMissingBmpToMulData(encoding);
+
+            var progress = CreateAppProgress();
 
             var options = new MapConversionOptions
             {
@@ -447,7 +725,72 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 CancellationToken = cancelSource.Token
             };
 
-            if (useTileIndex)
+            if (useTerrainXml)
+            {
+                if (useTransitionStatics)
+                {
+                    var mapName = Path.GetFileNameWithoutExtension(mapPath);
+                    if (!TryResolveStaticsNames(mapName, out var staticsName, out var staidxName))
+                    {
+                        staticsName = "statics.mul";
+                        staidxName = "staidx.mul";
+                    }
+
+                    var transitionStaticsPath = Path.Combine(outputFolder, staticsName);
+                    var transitionStaidxPath = Path.Combine(outputFolder, staidxName);
+                    report = await Task.Run(() => MapConversion.ConvertTerrainXmlBmpToMulFromFilesWithStatics(
+                        terrainBmpPath,
+                        altitudeBmpPath,
+                        mapPath,
+                        transitionStaidxPath,
+                        transitionStaticsPath,
+                        Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml"),
+                        UOMapWeaverDataPaths.TransitionsRoot,
+                        StaticsLayout.ColumnMajor,
+                        progress,
+                        entry => AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level)),
+                        new MapConversionOptions
+                        {
+                            StopOnError = StopOnErrorCheckBox.IsChecked == true,
+                            CancellationToken = cancelSource.Token
+                        }
+                    ), cancelSource.Token);
+
+                    AppStatus.AppendLog($"Output staidx.mul: {transitionStaidxPath}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog($"Output statics.mul: {transitionStaticsPath}", AppStatusSeverity.Info);
+                    AppStatus.AppendLog("Statics layout: ColumnMajor", AppStatusSeverity.Info);
+                }
+                else
+                {
+                    report = await Task.Run(() => MapConversion.ConvertTerrainXmlBmpToMulFromFiles(
+                        terrainBmpPath,
+                        altitudeBmpPath,
+                        mapPath,
+                        Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml"),
+                        UOMapWeaverDataPaths.TransitionsRoot,
+                        progress,
+                        entry => AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level)),
+                        new MapConversionOptions
+                        {
+                            StopOnError = StopOnErrorCheckBox.IsChecked == true,
+                            CancellationToken = cancelSource.Token
+                        }
+                    ), cancelSource.Token);
+                }
+
+                var terrainReportSummary = report!.MissingTerrainTiles == 0
+                    ? "No missing tiles."
+                    : $"Missing tiles: {report.MissingTerrainTiles:N0}.";
+
+                StatusText.Text = $"Generated {Path.GetFileName(mapPath)}. {terrainReportSummary}";
+                StatusTextPreview.Text = StatusText.Text;
+                AppStatus.SetSuccess(StatusText.Text);
+                AppStatus.AppendLog($"BMP->MUL completed: {mapPath}. {report}", AppStatusSeverity.Success);
+                AppStatus.AppendLog(report.FormatTopMissingTiles(),
+                    report.MissingTerrainTiles > 0 ? AppStatusSeverity.Warning : AppStatusSeverity.Info);
+                return;
+            }
+            else if (useTileIndex)
             {
                 var tileResult = await Task.Run(() => MapConversion.ConvertTileIndexBmpToMul(
                     terrain24!,
@@ -492,11 +835,6 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             }
 
             await Task.Run(() => MapMulCodec.WriteLandTiles(mapPath, terrainWidthValue, terrainHeightValue, tiles!), cancelSource.Token);
-
-            if (!await TryWriteStaticsAsync(staIdxPath, staticsPath, terrainWidthValue, terrainHeightValue, tiles!, cancelSource.Token))
-            {
-                return;
-            }
 
             var reportSummary = report!.MissingTerrainTiles == 0
                 ? "No missing tiles."
@@ -577,54 +915,61 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         }
     }
 
-    private async Task<bool> TryWriteStaticsAsync(
-        string staIdxPath,
-        string staticsPath,
-        int width,
-        int height,
-        LandTile[] tiles,
-        CancellationToken token)
+    private void LogMissingBmpToMulData(TerrainEncoding encoding)
     {
-        if (GenerateStaticsCheckBox.IsChecked != true)
+        if (encoding == TerrainEncoding.MapTrans)
         {
-            return true;
+            var mapTransRoot = UOMapWeaverDataPaths.MapTransRoot;
+            if (!Directory.Exists(mapTransRoot))
+            {
+                AppStatus.AppendLog($"MapTrans folder missing: {mapTransRoot}", AppStatusSeverity.Warning);
+            }
+            else
+            {
+                var hasProfiles = Directory.EnumerateFiles(mapTransRoot, "Mod*.txt", SearchOption.AllDirectories).Any() ||
+                                  Directory.EnumerateFiles(mapTransRoot, "Mod*.xml", SearchOption.AllDirectories).Any();
+                if (!hasProfiles)
+                {
+                    AppStatus.AppendLog($"MapTrans profiles not found in {mapTransRoot}.", AppStatusSeverity.Warning);
+                }
+            }
         }
 
-        if (EmptyStaticsCheckBox.IsChecked == true)
+        if (encoding == TerrainEncoding.TileJson)
         {
-            await Task.Run(() => StaticMulCodec.WriteEmptyStatics(staIdxPath, staticsPath, width, height), token);
-            AppStatus.AppendLog("Generated empty statics.", AppStatusSeverity.Info);
-            return true;
+            var tileJsonPath = TileJsonPathBox.Text;
+            if (!string.IsNullOrWhiteSpace(tileJsonPath) && !File.Exists(tileJsonPath))
+            {
+                AppStatus.AppendLog($"Tile JSON not found: {tileJsonPath}", AppStatusSeverity.Warning);
+            }
+        }
+        if (encoding == TerrainEncoding.TerrainXml)
+        {
+            var terrainXmlPath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml");
+            if (!File.Exists(terrainXmlPath))
+            {
+                AppStatus.AppendLog($"Terrain.xml not found: {terrainXmlPath}", AppStatusSeverity.Warning);
+            }
+
+            if (!Directory.Exists(UOMapWeaverDataPaths.TransitionsRoot))
+            {
+                AppStatus.AppendLog($"Transitions folder not found: {UOMapWeaverDataPaths.TransitionsRoot}", AppStatusSeverity.Warning);
+            }
+
+            var altitudeXmlPath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml");
+            if (!File.Exists(altitudeXmlPath))
+            {
+                AppStatus.AppendLog($"Altitude.xml not found: {altitudeXmlPath}", AppStatusSeverity.Warning);
+            }
         }
 
-        AppStatus.AppendLog("Generating statics from data definitions...", AppStatusSeverity.Info);
-
-        var progress = new Progress<int>(percent =>
-            Dispatcher.UIThread.Post(() => AppStatus.SetProgress(percent, true)));
-
-        try
+        var paletteRoot = UOMapWeaverDataPaths.PalettesRoot;
+        if (!Directory.Exists(paletteRoot) ||
+            !Directory.EnumerateFiles(paletteRoot, "*.bmp", SearchOption.AllDirectories).Any())
         {
-            var placements = await Task.Run(() => StaticPlacementGenerator.Generate(
-                tiles,
-                width,
-                height,
-                new StaticPlacementOptions(),
-                progress,
-                entry => AppStatus.AppendLog(entry.Message, MapLogToStatus(entry.Level)),
-                token), token);
+            AppStatus.AppendLog($"No palette BMPs found in {paletteRoot}.", AppStatusSeverity.Warning);
+        }
 
-            await Task.Run(() => StaticMulCodec.WriteStatics(staIdxPath, staticsPath, width, height, placements), token);
-            AppStatus.AppendLog("Generated populated statics.", AppStatusSeverity.Success);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Static generation error: {ex.Message}";
-            StatusTextPreview.Text = StatusText.Text;
-            AppStatus.SetError(StatusText.Text);
-            AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Error);
-            return false;
-        }
     }
 
     private async Task<bool> ConfirmOverwriteAsync(string title, params string[] paths)
@@ -691,44 +1036,6 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         return dialog;
     }
 
-    private async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new List<FilePickerFileType>
-            {
-                CreateFileTypeFilter(string.Join(", ", extensions), extensions)
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var provider = GetStorageProvider();
-        if (provider is null)
-        {
-            return null;
-        }
-
-        var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
-    }
-
     private async Task LoadBmpPreviewAsync(string path)
     {
         if (!File.Exists(path))
@@ -767,9 +1074,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         OutputFolderBox.Text = AppSettings.GetString("BmpToMul.OutputFolder", OutputFolderBox.Text ?? string.Empty);
         TileJsonPathBox.Text = AppSettings.GetString("BmpToMul.TileJsonPath", TileJsonPathBox.Text ?? string.Empty);
 
-        GenerateStaticsCheckBox.IsChecked = AppSettings.GetBool("BmpToMul.GenerateStatics", GenerateStaticsCheckBox.IsChecked == true);
-        EmptyStaticsCheckBox.IsChecked = AppSettings.GetBool("BmpToMul.EmptyStatics", EmptyStaticsCheckBox.IsChecked == true);
         StopOnErrorCheckBox.IsChecked = AppSettings.GetBool("BmpToMul.StopOnError", StopOnErrorCheckBox.IsChecked == true);
+        TransitionStaticsCheckBox.IsChecked = AppSettings.GetBool("BmpToMul.TransitionStatics", TransitionStaticsCheckBox.IsChecked == true);
 
         var encodingText = AppSettings.GetString("BmpToMul.TerrainEncoding", string.Empty);
         if (Enum.TryParse<TerrainEncoding>(encodingText, out var encoding))
@@ -787,6 +1093,12 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             AddMapTransOption(mapTransPath);
         }
 
+        var palettePath = AppSettings.GetString("BmpToMul.PalettePath", string.Empty);
+        if (!string.IsNullOrWhiteSpace(palettePath))
+        {
+            AddPaletteOption(palettePath);
+        }
+
         _loadingState = false;
     }
 
@@ -801,15 +1113,15 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         AppSettings.SetString("BmpToMul.TerrainBmp", TerrainBmpBox.Text ?? string.Empty);
         AppSettings.SetString("BmpToMul.OutputFolder", OutputFolderBox.Text ?? string.Empty);
         AppSettings.SetString("BmpToMul.TileJsonPath", TileJsonPathBox.Text ?? string.Empty);
-        AppSettings.SetBool("BmpToMul.GenerateStatics", GenerateStaticsCheckBox.IsChecked == true);
-        AppSettings.SetBool("BmpToMul.EmptyStatics", EmptyStaticsCheckBox.IsChecked == true);
         AppSettings.SetBool("BmpToMul.StopOnError", StopOnErrorCheckBox.IsChecked == true);
+        AppSettings.SetBool("BmpToMul.TransitionStatics", TransitionStaticsCheckBox.IsChecked == true);
 
         var encoding = GetTerrainEncoding();
         AppSettings.SetString("BmpToMul.TerrainEncoding", encoding.ToString());
 
         var mapTransPath = GetSelectedMapTransPath() ?? string.Empty;
         AppSettings.SetString("BmpToMul.MapTransPath", mapTransPath);
+        AppSettings.SetString("BmpToMul.PalettePath", GetSelectedPalettePath() ?? string.Empty);
     }
 
     public void PersistState()
@@ -937,24 +1249,10 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     private Window GetOwnerWindow()
         => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
 
-    private IStorageProvider? GetStorageProvider()
-        => TopLevel.GetTopLevel(this)?.StorageProvider;
-
-    private static FilePickerFileType CreateFileTypeFilter(string name, IEnumerable<string> extensions)
-    {
-        var patterns = extensions
-            .Select(ext => ext.StartsWith('.') ? $"*{ext}" : $"*.{ext}")
-            .ToList();
-
-        return new FilePickerFileType(name)
-        {
-            Patterns = patterns
-        };
-    }
-
     private void LoadTerrainEncodings()
     {
         _terrainEncodings.Clear();
+        _terrainEncodings.Add(new TerrainEncodingOption(TerrainEncoding.TerrainXml, "Terrain XML (Transitions, 24-bit)"));
         _terrainEncodings.Add(new TerrainEncodingOption(TerrainEncoding.MapTrans, "MapTrans (8-bit palette)"));
         _terrainEncodings.Add(new TerrainEncodingOption(TerrainEncoding.TileJson, "Tile JSON (8/24-bit)"));
         _terrainEncodings.Add(new TerrainEncodingOption(TerrainEncoding.TileIndexRgb, "TileIndex RGB (24-bit)"));
@@ -970,11 +1268,12 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     {
         return TerrainEncodingComboBox?.SelectedItem is TerrainEncodingOption option
             ? option.Encoding
-            : TerrainEncoding.MapTrans;
+            : TerrainEncoding.TerrainXml;
     }
 
     private void LoadMapTransOptions()
     {
+        var selectedPath = GetSelectedMapTransPath();
         _mapTransOptions.Clear();
         var roots = FindMapTransRoots().ToList();
         MapTransRootsText.Text = roots.Count == 0
@@ -988,11 +1287,7 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
 
         if (MapTransComboBox != null)
         {
-            MapTransComboBox.ItemsSource = _mapTransOptions;
-            if (_mapTransOptions.Count > 0)
-            {
-                MapTransComboBox.SelectedIndex = 0;
-            }
+            RefreshMapTransOptions(selectedPath);
         }
     }
 
@@ -1013,17 +1308,117 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             ? Path.GetFileName(path)
             : $"{parentName}/{Path.GetFileName(path)}";
         _mapTransOptions.Add(new MapTransOption(name, path));
-
-        MapTransComboBox.ItemsSource = _mapTransOptions;
-        if (select)
-        {
-            MapTransComboBox.SelectedIndex = _mapTransOptions.Count - 1;
-        }
+        RefreshMapTransOptions(select ? path : null);
     }
 
     private string? GetSelectedMapTransPath()
     {
         return MapTransComboBox.SelectedItem is MapTransOption option ? option.Path : null;
+    }
+
+    private void RefreshMapTransOptions(string? selectPath)
+    {
+        _mapTransOptions.Sort(CompareMapTransOption);
+        MapTransComboBox.ItemsSource = null;
+        MapTransComboBox.ItemsSource = _mapTransOptions;
+
+        if (!string.IsNullOrWhiteSpace(selectPath))
+        {
+            MapTransComboBox.SelectedItem = _mapTransOptions.Find(option =>
+                option.Path.Equals(selectPath, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (MapTransComboBox.SelectedItem is null && _mapTransOptions.Count > 0)
+        {
+            MapTransComboBox.SelectedIndex = 0;
+        }
+    }
+
+    private void LoadPaletteOptions()
+    {
+        var selectedPath = GetSelectedPalettePath();
+        _paletteOptions.Clear();
+        foreach (var path in FindPalettePaths())
+        {
+            AddPaletteOption(path, select: false);
+        }
+
+        RefreshPaletteOptions(selectedPath);
+    }
+
+    private void AddPaletteOption(string path, bool select = true)
+    {
+        if (_paletteOptions.Exists(option => option.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (select)
+            {
+                PaletteComboBox.SelectedItem = _paletteOptions.Find(option =>
+                    option.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
+            }
+            return;
+        }
+
+        var parentName = new DirectoryInfo(Path.GetDirectoryName(path) ?? string.Empty).Name;
+        var name = string.IsNullOrWhiteSpace(parentName)
+            ? Path.GetFileName(path)
+            : $"{parentName}/{Path.GetFileName(path)}";
+        _paletteOptions.Add(new PaletteOption(name, path));
+        RefreshPaletteOptions(select ? path : null);
+    }
+
+    private string? GetSelectedPalettePath()
+        => PaletteComboBox.SelectedItem is PaletteOption option ? option.Path : null;
+
+    private void RefreshPaletteOptions(string? selectPath)
+    {
+        _paletteOptions.Sort(ComparePaletteOption);
+        PaletteComboBox.ItemsSource = null;
+        PaletteComboBox.ItemsSource = _paletteOptions;
+
+        if (!string.IsNullOrWhiteSpace(selectPath))
+        {
+            PaletteComboBox.SelectedItem = _paletteOptions.Find(option =>
+                option.Path.Equals(selectPath, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (PaletteComboBox.SelectedItem is null && _paletteOptions.Count > 0)
+        {
+            PaletteComboBox.SelectedIndex = 0;
+        }
+    }
+
+    private static IEnumerable<string> FindPalettePaths()
+    {
+        var roots = new[]
+        {
+            UOMapWeaverDataPaths.PalettesRoot,
+            UOMapWeaverDataPaths.MapTransRoot
+        };
+
+        var results = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in roots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+            foreach (var path in Directory.EnumerateFiles(root, "*.bmp", SearchOption.AllDirectories))
+            {
+                var dir = Path.GetDirectoryName(path) ?? string.Empty;
+                if (dir.EndsWith(Path.Combine("Palettes", "24bit"), StringComparison.OrdinalIgnoreCase) ||
+                    Path.GetFileName(path).Contains("_24bit", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (seen.Add(path))
+                {
+                    results.Add(path);
+                }
+            }
+        }
+
+        results.Sort(StringComparer.OrdinalIgnoreCase);
+        return results;
     }
 
     private static IEnumerable<string> FindMapTransRoots()
@@ -1061,7 +1456,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
     {
         MapTrans,
         TileJson,
-        TileIndexRgb
+        TileIndexRgb,
+        TerrainXml
     }
 
     private sealed class TerrainEncodingOption
@@ -1092,6 +1488,108 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         public string Path { get; }
 
         public override string ToString() => Name;
+    }
+
+    private sealed class PaletteOption
+    {
+        public PaletteOption(string name, string path)
+        {
+            Name = name;
+            Path = path;
+        }
+
+        public string Name { get; }
+
+        public string Path { get; }
+
+        public override string ToString() => Name;
+    }
+
+    private static int CompareMapTransOption(MapTransOption left, MapTransOption right)
+        => CompareNatural(left.Name, right.Name);
+
+    private static int ComparePaletteOption(PaletteOption left, PaletteOption right)
+        => CompareNatural(left.Name, right.Name);
+
+    private static int CompareNatural(string left, string right)
+    {
+        var leftIndex = 0;
+        var rightIndex = 0;
+
+        while (leftIndex < left.Length && rightIndex < right.Length)
+        {
+            var leftChar = left[leftIndex];
+            var rightChar = right[rightIndex];
+
+            if (char.IsDigit(leftChar) && char.IsDigit(rightChar))
+            {
+                var leftNumber = ReadNumber(left, ref leftIndex);
+                var rightNumber = ReadNumber(right, ref rightIndex);
+                var numberCompare = leftNumber.CompareTo(rightNumber);
+                if (numberCompare != 0)
+                {
+                    return numberCompare;
+                }
+                continue;
+            }
+
+            var charCompare = char.ToUpperInvariant(leftChar).CompareTo(char.ToUpperInvariant(rightChar));
+            if (charCompare != 0)
+            {
+                return charCompare;
+            }
+
+            leftIndex++;
+            rightIndex++;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static int ReadNumber(string value, ref int index)
+    {
+        var start = index;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        if (int.TryParse(value[start..index], out var number))
+        {
+            return number;
+        }
+
+        return 0;
+    }
+
+    private static int CountPaletteMismatch(string palettePath, BmpPaletteEntry[]? terrainPalette)
+    {
+        if (!File.Exists(palettePath) || terrainPalette is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var paletteImage = Bmp8Codec.Read(palettePath);
+            var palette = paletteImage.Palette;
+            var mismatch = 0;
+            for (var i = 0; i < Math.Min(palette.Length, terrainPalette.Length); i++)
+            {
+                if (palette[i].Red != terrainPalette[i].Red ||
+                    palette[i].Green != terrainPalette[i].Green ||
+                    palette[i].Blue != terrainPalette[i].Blue)
+                {
+                    mismatch++;
+                }
+            }
+
+            return mismatch;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     private void UpdateStatus()
@@ -1133,29 +1631,34 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
 
         SetFieldState(OutputFolderBox, Directory.Exists(OutputFolderBox.Text ?? string.Empty) ? FieldState.Valid : FieldState.Error);
 
-        var generateStatics = GenerateStaticsCheckBox.IsChecked == true;
-        EmptyStaticsCheckBox.IsVisible = generateStatics;
-        EmptyStaticsCheckBox.IsEnabled = generateStatics;
-
-        if (generateStatics && EmptyStaticsCheckBox.IsChecked != true)
-        {
-            var terrainPath = Path.Combine(UOMapWeaverDataPaths.SystemRoot, "Terrain.xml");
-            var staticsAvailable = Directory.Exists(UOMapWeaverDataPaths.StaticsRoot) &&
-                                   Directory.EnumerateFiles(UOMapWeaverDataPaths.StaticsRoot, "*.xml", SearchOption.TopDirectoryOnly).Any();
-            if (!File.Exists(terrainPath) || !staticsAvailable)
-            {
-                warnings.Add("Static data missing; will generate empty statics.");
-            }
-        }
-
         var encoding = GetTerrainEncoding();
         var useTileJson = encoding == TerrainEncoding.TileJson;
         var useMapTrans = encoding == TerrainEncoding.MapTrans;
         var useTileIndex = encoding == TerrainEncoding.TileIndexRgb;
+        var useTerrainXml = encoding == TerrainEncoding.TerrainXml;
         var mapTransSelected = GetSelectedMapTransPath() is not null;
         if (useMapTrans && !mapTransSelected)
         {
             warnings.Add("Select a MapTrans profile.");
+        }
+        if (useTerrainXml)
+        {
+            var terrainXmlPath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml");
+            if (!File.Exists(terrainXmlPath))
+            {
+                warnings.Add($"Terrain.xml not found: {terrainXmlPath}");
+            }
+
+            if (!Directory.Exists(UOMapWeaverDataPaths.TransitionsRoot))
+            {
+                warnings.Add($"Transitions folder not found: {UOMapWeaverDataPaths.TransitionsRoot}");
+            }
+
+            var altitudeXmlPath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml");
+            if (!File.Exists(altitudeXmlPath))
+            {
+                warnings.Add($"Altitude.xml not found: {altitudeXmlPath}");
+            }
         }
 
         SetFieldState(MapTransComboBox, useMapTrans
@@ -1163,9 +1666,42 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
             : FieldState.Neutral);
 
         MapTransComboBox.IsEnabled = useMapTrans;
+        PaletteComboBox.IsEnabled = useMapTrans;
+        if (PaletteBrowseButton != null)
+        {
+            PaletteBrowseButton.IsEnabled = useMapTrans;
+        }
         if (MapTransBrowseButton != null)
         {
             MapTransBrowseButton.IsEnabled = useMapTrans;
+        }
+        if (MapTransConvertButton != null)
+        {
+            var selected = GetSelectedMapTransPath();
+            MapTransConvertButton.IsEnabled = useMapTrans && !string.IsNullOrWhiteSpace(selected) &&
+                                             selected.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (useMapTrans)
+        {
+            var palettePath = GetSelectedPalettePath();
+            if (!string.IsNullOrWhiteSpace(palettePath) && !File.Exists(palettePath))
+            {
+                warnings.Add("Palette BMP not found.");
+                SetFieldState(PaletteComboBox, FieldState.Error);
+            }
+            else if (!string.IsNullOrWhiteSpace(palettePath))
+            {
+                SetFieldState(PaletteComboBox, FieldState.Valid);
+            }
+            else
+            {
+                SetFieldState(PaletteComboBox, FieldState.Neutral);
+            }
+        }
+        else
+        {
+            SetFieldState(PaletteComboBox, FieldState.Neutral);
         }
 
         if (useTileJson)
@@ -1198,11 +1734,35 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         }
         else
         {
-            TileJsonModeText.Text = useTileIndex ? "TileIndex RGB (24-bit)" : string.Empty;
+            TileJsonModeText.Text = useTileIndex
+                ? "TileIndex RGB (24-bit)"
+                : useTerrainXml
+                    ? "Terrain XML (Transitions)"
+                    : string.Empty;
             SetFieldState(TileJsonPathBox, FieldState.Neutral, isOptional: true);
         }
 
         TileJsonPathBox.IsEnabled = useTileJson;
+
+        TransitionStaticsCheckBox.IsEnabled = useTerrainXml;
+        if (!useTerrainXml && TransitionStaticsCheckBox.IsChecked == true)
+        {
+            TransitionStaticsCheckBox.IsChecked = false;
+        }
+
+        if (useTerrainXml && TransitionStaticsCheckBox.IsChecked == true)
+        {
+            var terrainXmlPath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Terrain.xml");
+            if (!File.Exists(terrainXmlPath))
+            {
+                warnings.Add($"Terrain.xml not found: {terrainXmlPath}");
+            }
+
+            if (!Directory.Exists(UOMapWeaverDataPaths.TransitionsRoot))
+            {
+                warnings.Add($"Transitions folder not found: {UOMapWeaverDataPaths.TransitionsRoot}");
+            }
+        }
 
         var sizeWarning = false;
         if (!string.IsNullOrWhiteSpace(AltitudeBmpBox.Text) &&
@@ -1240,6 +1800,11 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 else if (useMapTrans && bits != 8)
                 {
                     warnings.Add("Terrain.bmp must be 8-bit for MapTrans encoding.");
+                    sizeWarning = true;
+                }
+                else if (useTerrainXml && bits != 24)
+                {
+                    warnings.Add("Terrain.bmp must be 24-bit for Terrain XML encoding.");
                     sizeWarning = true;
                 }
                 else if (useTileJson && !string.IsNullOrWhiteSpace(TileJsonPathBox.Text) &&
@@ -1314,73 +1879,41 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
         return false;
     }
 
-    private static void SetFieldState(TextBox box, FieldState state, bool isOptional = false)
+    private static bool TryResolveStaticsNames(string mapName, out string staticsName, out string staidxName)
     {
-        if (isOptional && string.IsNullOrWhiteSpace(box.Text))
+        staticsName = string.Empty;
+        staidxName = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(mapName))
         {
-            box.ClearValue(BorderBrushProperty);
-            box.ClearValue(ForegroundProperty);
-            return;
+            return false;
         }
 
-        ApplyFieldState(box, state);
-    }
-
-    private static void SetFieldState(ComboBox box, FieldState state)
-    {
-        ApplyFieldState(box, state);
-    }
-
-    private static void ApplyFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
+        var lower = mapName.ToLowerInvariant();
+        var suffix = string.Empty;
+        if (lower.StartsWith("map"))
         {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
+            suffix = mapName[3..];
+        }
+        else if (lower.EndsWith("_map"))
+        {
+            var prefix = mapName[..^4];
+            if (!string.IsNullOrWhiteSpace(prefix))
+            {
+                staticsName = $"{prefix}_statics.mul";
+                staidxName = $"{prefix}_staidx.mul";
+                return true;
+            }
         }
 
-        var brush = state switch
+        if (!string.IsNullOrWhiteSpace(suffix))
         {
-            FieldState.Warning => Brushes.Goldenrod,
-            FieldState.Error => Brushes.IndianRed,
-            _ => Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
-    }
-
-    private static AppStatusSeverity MapLogToStatus(MapConversionLogLevel level)
-    {
-        return level switch
-        {
-            MapConversionLogLevel.Error => AppStatusSeverity.Error,
-            MapConversionLogLevel.Warning => AppStatusSeverity.Warning,
-            MapConversionLogLevel.Success => AppStatusSeverity.Success,
-            _ => AppStatusSeverity.Info
-        };
-    }
-
-    private static string FormatFileSize(string path)
-    {
-        try
-        {
-            var info = new FileInfo(path);
-            return $"{info.Length:N0} bytes";
+            staticsName = $"statics{suffix}.mul";
+            staidxName = $"staidx{suffix}.mul";
+            return true;
         }
-        catch
-        {
-            return "unknown";
-        }
+
+        return false;
     }
 
     private static bool UseStreaming(int width, int height)

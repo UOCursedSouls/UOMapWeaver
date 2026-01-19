@@ -6,13 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using UOMapWeaver.App;
 using UOMapWeaver.Core.Uop;
+using static UOMapWeaver.App.Views.ViewHelpers;
+using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
 namespace UOMapWeaver.App.Views;
 
@@ -38,20 +37,52 @@ public sealed partial class UopToolsView : UserControl, IAppStateView
     }
 
     private async void OnBrowseExtractUop(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => ExtractUopPathBox.Text = await PickFileAsync("Select UOP file", new[] { "uop" });
+    {
+        var path = await PickFileAsync(this, "Select UOP file", new[] { "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ExtractUopPathBox.Text = path;
+            UpdateExtractState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowseExtractOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => ExtractOutputFolderBox.Text = await PickFolderAsync("Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ExtractOutputFolderBox.Text = path;
+            UpdateExtractState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowsePackTemplate(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PackTemplatePathBox.Text = await PickFileAsync("Select template UOP", new[] { "uop" });
+    {
+        var path = await PickFileAsync(this, "Select template UOP", new[] { "uop" });
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            PackTemplatePathBox.Text = path;
+            UpdatePackState();
+            SaveState();
+        }
+    }
 
     private async void OnBrowsePackOutputFolder(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => PackOutputFolderBox.Text = await PickFolderAsync("Select output folder");
+    {
+        var path = await PickFolderAsync(this, "Select output folder");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            PackOutputFolderBox.Text = path;
+            UpdatePackState();
+            SaveState();
+        }
+    }
 
     private async void OnAddPackInputs(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var files = await PickFilesAsync("Select input files", new[] { "mul", "dat", "bin" });
+        var files = await PickFilesAsync(this, "Select input files", new[] { "mul", "dat", "bin" });
         foreach (var file in files)
         {
             if (!_packInputs.Contains(file))
@@ -474,110 +505,6 @@ public sealed partial class UopToolsView : UserControl, IAppStateView
     public void PersistState()
     {
         SaveState();
-    }
-
-    private static void SetFieldState(TextBox box, FieldState state, bool isOptional = false)
-    {
-        if (isOptional && string.IsNullOrWhiteSpace(box.Text))
-        {
-            box.ClearValue(BorderBrushProperty);
-            box.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        ApplyFieldState(box, state);
-    }
-
-    private static void ApplyFieldState(TemplatedControl control, FieldState state)
-    {
-        if (state == FieldState.Neutral)
-        {
-            control.ClearValue(BorderBrushProperty);
-            control.ClearValue(ForegroundProperty);
-            return;
-        }
-
-        var brush = state switch
-        {
-            FieldState.Warning => Avalonia.Media.Brushes.Goldenrod,
-            FieldState.Error => Avalonia.Media.Brushes.IndianRed,
-            _ => Avalonia.Media.Brushes.ForestGreen
-        };
-
-        control.BorderBrush = brush;
-        control.Foreground = brush;
-    }
-
-    private enum FieldState
-    {
-        Neutral,
-        Valid,
-        Warning,
-        Error
-    }
-
-    private static async Task<string?> PickFileAsync(string title, string[] extensions)
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow?.StorageProvider is null)
-        {
-            return null;
-        }
-
-        var provider = desktop.MainWindow.StorageProvider;
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType(title) { Patterns = extensions.Select(ext => $"*.{ext}").ToArray() }
-            }
-        });
-
-        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
-    }
-
-    private static async Task<string[]> PickFilesAsync(string title, string[] extensions)
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow?.StorageProvider is null)
-        {
-            return Array.Empty<string>();
-        }
-
-        var provider = desktop.MainWindow.StorageProvider;
-        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = true,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType(title) { Patterns = extensions.Select(ext => $"*.{ext}").ToArray() }
-            }
-        });
-
-        return files.Select(file => file.TryGetLocalPath())
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToArray()!;
-    }
-
-    private static async Task<string?> PickFolderAsync(string title)
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow?.StorageProvider is null)
-        {
-            return null;
-        }
-
-        var provider = desktop.MainWindow.StorageProvider;
-        var folders = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
     private async Task<bool> ConfirmOverwriteAsync(string title, params string[] paths)

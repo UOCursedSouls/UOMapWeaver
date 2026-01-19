@@ -52,7 +52,7 @@ public static class AppStatus
         LogCleared?.Invoke(null, EventArgs.Empty);
     }
 
-    public static void SetProgress(int percent, bool isActive)
+    public static void SetProgress(double percent, bool isActive, long? processed = null, long? total = null)
     {
         if (percent < 0)
         {
@@ -64,7 +64,7 @@ public static class AppStatus
             percent = 100;
         }
 
-        ProgressChanged?.Invoke(null, new AppProgressState(percent, isActive));
+        ProgressChanged?.Invoke(null, new AppProgressState(percent, isActive, processed, total));
     }
 
     public static void SetCancelSource(CancellationTokenSource? source)
@@ -115,14 +115,20 @@ public readonly struct AppLogEntry
 
 public readonly struct AppProgressState
 {
-    public AppProgressState(int percent, bool isActive)
+    public AppProgressState(double percent, bool isActive, long? processed, long? total)
     {
         Percent = percent;
         IsActive = isActive;
+        Processed = processed;
+        Total = total;
     }
 
-    public int Percent { get; }
+    public double Percent { get; }
 
     public bool IsActive { get; }
+
+    public long? Processed { get; }
+
+    public long? Total { get; }
 }
 

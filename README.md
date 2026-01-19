@@ -7,13 +7,15 @@ or rebuild maps from images.
 ## Features
 - Convert `map*.mul` (plus optional statics) to `*_Terrain.bmp` and `*_Altitude.bmp`.
 - Convert `*_Terrain.bmp` and `*_Altitude.bmp` back to `map*.mul`.
-- Optionally generate populated statics from legacy data definitions.
+- Convert terrain via Terrain XML (24-bit) with transition blending.
+- Optionally write altitude BMP using `Altitude.xml` colors (24-bit) or grayscale (8-bit).
+- Generate populated statics from terrain + transition definitions.
 - Auto-detect map size from the `.mul` file.
 - MapTrans profile support (built-in and custom profiles).
 - Tile Color JSON mapping (8-bit indexed or 24-bit RGB).
 - Terrain encoding selector (MapTrans, Tile JSON, or TileIndex RGB).
 - Build tile color JSON from one or more `map.mul` files (incremental updates).
-- Create blank BMP maps from a chosen size and palette.
+- Create blank BMP maps (8-bit palette or 24-bit RGB) with fill options.
 - Minimal UI with previews and logs.
 - Copy map regions (terrain + optional statics) between maps.
 - Save and restore UI fields and options.
@@ -26,29 +28,50 @@ or rebuild maps from images.
 - If a terrain color is missing from a profile, the pixel is written as transparent.
 - Tile color JSON can be used in place of MapTrans for conversions.
 - TileIndex RGB stores the tileId directly in a 24-bit BMP (`R=tileId>>8`, `G=tileId&0xFF`, `B=0`) for lossless terrain round-trips.
-- Static generation uses `UOMapWeaverData` (System/Terrain.xml + Statics/TerrainTypes definitions).
-- UI state is saved in `UOMapWeaverData/ui-state.json` when `Save Fields` is enabled.
+- Static generation uses `UOMapWeaverData/Statics` plus terrain/transition definitions.
+- UI state is saved in `UOMapWeaverData/ui-state.json` (next to the executable) when `Save Fields` is enabled.
 
 ## Terrain Encodings
 - MapTrans: classic 8-bit palette based on MapTrans profiles.
 - Tile JSON: palette-driven (Indexed8) or truecolor (RGB24) via a JSON tile table.
 - TileIndex RGB: direct tileId encoding in 24-bit BMP (best for lossless edits, requires 24-bit terrain BMP).
+- Terrain XML (24-bit): uses `Terrain.xml` + `Transitions` to encode terrain in RGB24.
 
 ## Data Folder
-On its first startup, the application automatically creates the `UOMapWeaverData` directory next to the executable. 
+On first startup, the app creates `UOMapWeaverData` next to the executable and adds `README.txt` files in each folder.
+No default data files are shipped; you must copy your own XML/TXT/ACT/BMP files into the folders listed below.
 
-**Note on Third-Party Files:** To respect the copyright of original authors and ensure full customization, this application **does not bundle** third-party configuration files, XML definitions, or MapTrans engines. Users must manually provide these files (e.g., from *UO Landscaper* or *Map Creator*) by copying them into the appropriate subfolders.
+Key folders under `UOMapWeaverData`:
 
-The folder structure is organized as follows:
+* **`MapTrans`**: MapTrans profiles (`Mod11.txt`, `Mod11.xml`, etc.).
+* **`Transitions`**: transition XMLs for terrain blending.
+* **`TerrainTypes`**: terrain type XMLs.
+* **`Templates`**: 2-way/3-way template XMLs.
+* **`RoughEdge`**: rough-edge XMLs.
+* **`Palettes`**: 8-bit palette BMPs (ex: `TerrainPalette.bmp`).
+* **`ColorTables/ACT`**: ACT palettes (`Terrain.act`, `Altitude.act`).
+* **`Definitions`**: `map-definitions.json`, `terrain-definitions.json` (optional).
+* **`Presets`**: `map-presets.json` (optional, for Blank BMP sizes).
+* **`Statics`**: static placement JSONs (generated or user-supplied).
+* **`Import Files`**: static import XMLs (optional).
+* **`TileColors`** and **`JsonTileReplace`**: generated JSON outputs.
 
-* **`UOMapWeaverData/System/MapTrans`**: **[Action Required]** Manually paste your MapTrans profiles and engine XMLs here. These files are necessary for the program to understand how to interpret and translate map data.
-* **`UOMapWeaverData/Definitions`**: Contains `map-definitions.json`. You can modify this manually to add custom map sizes or shard-specific parameters.
-* **`UOMapWeaverData/Presets`**: Contains `map-presets.json` for Blank BMP size configurations.
-* **`UOMapWeaverData/Palettes`**: Place your palette BMPs here (e.g., `GrayscalePalette.bmp`).
-* **`UOMapWeaverData/TileColors`**: Storage for generated tile JSON files used for rendering.
-* **`UOMapWeaverData/Transitions`, `Statics`, `Photoshop`, `Import Files`, `ExportUOL`**: Legacy data folders. Users should copy their existing project files into these directories to work with them.
+**Regenerate Defaults** recreates the folder structure and README files only.
 
-> **Disclaimer:** It provides the structure, but the logic files (.xml, .tga, etc.) from authors like Gametec (Map Creator) or dKnight (UO Landscaper) must be supplied by the user.
+## GenStatics Guide
+Use the **GenStatics** tab to generate statics from terrain data:
+
+1) Select `map.mul` and output folder.
+2) Enable `Random statics` (biome-based) and/or `Transition statics`.
+3) Optionally load `Terrain.bmp`/`Altitude.bmp` for transition statics.
+4) Click `Generate`.
+
+### Biome Overrides
+The **Overrides** sub-tab lets you remap a biome to a different XML and adjust spawn chance.  
+Enable `Override` to apply your edits; missing biome XMLs are reported in the log.
+
+### Output
+Generated files are `staidx.mul` and `statics.mul` in the chosen output folder.
 
 ## Map Copy Guide
 The Map Copy tab copies a rectangular region from a source map to a destination map.

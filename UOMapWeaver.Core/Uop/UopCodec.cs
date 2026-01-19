@@ -100,6 +100,7 @@ public static class UopCodec
 
         using var stream = new FileStream(uopPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var total = entries.Count;
+        var lastProgress = -1;
 
         if (combineEntries)
         {
@@ -111,7 +112,7 @@ public static class UopCodec
                 token?.ThrowIfCancellationRequested();
                 var data = ReadEntryData(stream, entries[i]);
                 output.Write(data, 0, data.Length);
-                ReportProgress(progress, i + 1, total);
+                ReportProgress(progress, i + 1, total, ref lastProgress);
             }
         }
         else
@@ -125,7 +126,7 @@ public static class UopCodec
                 var name = $"entry_{entry.Index:D4}.bin";
                 var target = Path.Combine(outputPath, name);
                 File.WriteAllBytes(target, data);
-                ReportProgress(progress, i + 1, total);
+                ReportProgress(progress, i + 1, total, ref lastProgress);
             }
         }
 
@@ -168,6 +169,7 @@ public static class UopCodec
 
         var hashLookup = entries.ToDictionary(entry => (ulong)entry.Hash, entry => entry);
         var (pattern, altPattern, maxId) = GetHashPattern(type, typeIndex, entries);
+        var lastProgress = -1;
         var used = idxWriter is null ? null : new bool[maxId];
 
         var written = 0;
@@ -198,7 +200,7 @@ public static class UopCodec
                 mulStream.Seek(id * (long)MapChunkSize, SeekOrigin.Begin);
                 mulStream.Write(data, 0, data.Length);
                 written++;
-                ReportProgress(progress, id + 1, maxId);
+                ReportProgress(progress, id + 1, maxId, ref lastProgress);
                 continue;
             }
 
@@ -253,7 +255,7 @@ public static class UopCodec
                     used[id] = true;
                 }
                 written++;
-                ReportProgress(progress, id + 1, maxId);
+                ReportProgress(progress, id + 1, maxId, ref lastProgress);
                 continue;
             }
             else
@@ -269,7 +271,7 @@ public static class UopCodec
 
             mulStream.Write(data, dataOffset, data.Length - dataOffset);
             written++;
-            ReportProgress(progress, id + 1, maxId);
+            ReportProgress(progress, id + 1, maxId, ref lastProgress);
         }
 
         if (idxWriter is not null && used is not null)
@@ -324,6 +326,7 @@ public static class UopCodec
         try
         {
             var total = entries.Count;
+            var lastProgress = -1;
             var segmentIndex = 0;
             var remainingInSegment = segments[segmentIndex].Length;
             var written = 0L;
@@ -359,7 +362,7 @@ public static class UopCodec
                     }
                 }
 
-                ReportProgress(progress, i + 1, total);
+                ReportProgress(progress, i + 1, total, ref lastProgress);
             }
 
             log?.Invoke($"Extracted {entries.Count} entries into {segments.Count} segments.");
@@ -405,6 +408,7 @@ public static class UopCodec
         using var idxWriter = new BinaryWriter(idxStream);
 
         var written = 0;
+        var lastProgress = -1;
         for (var i = 0; i < ordered.Count; i++)
         {
             token?.ThrowIfCancellationRequested();
@@ -424,7 +428,7 @@ public static class UopCodec
             idxWriter.Write(data.Length);
             idxWriter.Write(0);
             written++;
-            ReportProgress(progress, i + 1, ordered.Count);
+            ReportProgress(progress, i + 1, ordered.Count, ref lastProgress);
         }
 
         log?.Invoke($"Extracted {written} indexed entries to {mulName} / {idxName}.");
@@ -539,6 +543,7 @@ public static class UopCodec
         }
 
         inputOffset = 0;
+        var lastProgress = -1;
         for (var i = 0; i < writtenChunks; i++)
         {
             token?.ThrowIfCancellationRequested();
@@ -567,7 +572,7 @@ public static class UopCodec
 
             output.Write(inputBytes, inputOffset, size);
             inputOffset += size;
-            ReportProgress(progress, i + 1, writtenChunks);
+            ReportProgress(progress, i + 1, writtenChunks, ref lastProgress);
         }
 
         var blockOffset = output.Length;
@@ -679,6 +684,7 @@ public static class UopCodec
             output.Write(new byte[dataOffset - output.Position]);
         }
 
+        var lastProgress = -1;
         for (var i = 0; i < entries.Count; i++)
         {
             token?.ThrowIfCancellationRequested();
@@ -704,7 +710,7 @@ public static class UopCodec
             var buffer = new byte[idx.Length];
             mulStream.ReadExactly(buffer);
             output.Write(buffer, 0, buffer.Length);
-            ReportProgress(progress, i + 1, entries.Count);
+            ReportProgress(progress, i + 1, entries.Count, ref lastProgress);
         }
 
         var blockOffset = output.Length;
@@ -746,6 +752,7 @@ public static class UopCodec
         var entries = new List<UopEntryData>();
         var seen = new HashSet<ulong>();
         using var mulStream = new FileStream(mulPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var lastProgress = -1;
 
         var chunkIndex = 0;
         var buffer = new byte[MapChunkSize];
@@ -769,7 +776,7 @@ public static class UopCodec
 
             entries.Add(new UopEntryData(chunkIndex, data, hash));
             chunkIndex++;
-            ReportProgress(progress, chunkIndex, (int)Math.Ceiling(mulStream.Length / (double)MapChunkSize));
+            ReportProgress(progress, chunkIndex, (int)Math.Ceiling(mulStream.Length / (double)MapChunkSize), ref lastProgress);
         }
 
         return WriteLegacyUop(outputPath, entries, log);
@@ -802,6 +809,7 @@ public static class UopCodec
         var entries = new List<UopEntryData>();
         var seen = new HashSet<ulong>();
         using var mulStream = new FileStream(mulPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var lastProgress = -1;
 
         for (var i = 0; i < idxEntries.Count; i++)
         {
@@ -840,7 +848,7 @@ public static class UopCodec
             }
 
             entries.Add(new UopEntryData(i, data, hash));
-            ReportProgress(progress, i + 1, idxEntries.Count);
+            ReportProgress(progress, i + 1, idxEntries.Count, ref lastProgress);
         }
 
         if (type == LegacyUopType.MultiCollection && !string.IsNullOrWhiteSpace(housingBinPath) && File.Exists(housingBinPath))
@@ -927,7 +935,7 @@ public static class UopCodec
         }
     }
 
-    private static void ReportProgress(IProgress<int>? progress, int completed, int total)
+    private static void ReportProgress(IProgress<int>? progress, int completed, int total, ref int lastProgress)
     {
         if (progress is null || total <= 0)
         {
@@ -935,6 +943,12 @@ public static class UopCodec
         }
 
         var percent = (int)(completed * 100.0 / total);
+        if (percent == lastProgress)
+        {
+            return;
+        }
+
+        lastProgress = percent;
         progress.Report(percent);
     }
 
