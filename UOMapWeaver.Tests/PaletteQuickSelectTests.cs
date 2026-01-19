@@ -28,7 +28,7 @@ public sealed class PaletteQuickSelectTests
             .Where(Directory.Exists)
             .SelectMany(dir => Directory.EnumerateFiles(dir, "*.bmp", SearchOption.AllDirectories))
             .Where(path =>
-                path.EndsWith("ColorPalette.bmp", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith("TerrainPalette.bmp", StringComparison.OrdinalIgnoreCase) ||
                 path.EndsWith("Palette.bmp", StringComparison.OrdinalIgnoreCase))
             .ToList();
 

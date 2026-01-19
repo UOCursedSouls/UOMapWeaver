@@ -116,7 +116,21 @@ public sealed partial class MainWindow : Window
         {
             GlobalProgressBar.IsVisible = state.IsActive;
             GlobalProgressBar.Value = state.Percent;
-            GlobalProgressText.Text = state.IsActive ? $"{state.Percent}%" : string.Empty;
+            if (!state.IsActive)
+            {
+                GlobalProgressText.Text = string.Empty;
+                return;
+            }
+
+            if (state.Processed.HasValue && state.Total.HasValue && state.Total.Value > 0)
+            {
+                GlobalProgressText.Text =
+                    $"{state.Percent:0.00}% ({state.Processed.Value:N0}/{state.Total.Value:N0})";
+            }
+            else
+            {
+                GlobalProgressText.Text = $"{state.Percent:0.00}%";
+            }
         });
     }
 

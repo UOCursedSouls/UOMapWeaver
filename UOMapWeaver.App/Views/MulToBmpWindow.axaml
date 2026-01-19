@@ -4,7 +4,7 @@
   <TabControl Margin="8">
     <TabItem Header="Inputs">
       <ScrollViewer>
-        <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+        <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Map.mul" VerticalAlignment="Center" />
           <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -38,8 +38,14 @@
             <Button Content="Browse" Click="OnBrowseOutput" />
           </StackPanel>
 
-          <TextBlock Grid.Row="4" Grid.Column="0" Text="Map Size" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="4" Grid.Column="1" Spacing="4">
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Output Name" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <TextBox Name="OutputBaseNameBox" Width="180" TextChanged="OnTextChanged" />
+            <CheckBox Name="UseMapNameCheckBox" Content="Use map.mul name" IsChecked="True" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Map Size" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="5" Grid.Column="1" Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox Name="MapWidthBox" Width="80" Watermark="Width" TextChanged="OnTextChanged" />
               <TextBox Name="MapHeightBox" Width="80" Watermark="Height" TextChanged="OnTextChanged" />
@@ -48,22 +54,38 @@
             <TextBlock Name="MapSizeDetailsText" />
           </StackPanel>
 
-          <TextBlock Grid.Row="5" Grid.Column="0" Text="MapTrans Roots" VerticalAlignment="Center" />
-          <TextBlock Grid.Row="5" Grid.Column="1" Name="MapTransRootsText" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="MapTrans Roots" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="6" Grid.Column="1" Name="MapTransRootsText" TextWrapping="Wrap" />
 
-          <TextBlock Grid.Row="6" Grid.Column="0" Text="MapTrans Profile" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBlock Grid.Row="7" Grid.Column="0" Text="MapTrans Profile" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <ComboBox Name="MapTransComboBox" Width="300" SelectionChanged="OnSelectionChanged" />
             <Button Name="MapTransBrowseButton" Content="Browse" Click="OnBrowseMapTrans" />
+            <Button Name="MapTransConvertButton" Content="Convert" Click="OnConvertMapTrans" />
           </StackPanel>
 
-          <TextBlock Grid.Row="7" Grid.Column="0" Text="Terrain Encoding" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBlock Grid.Row="8" Grid.Column="0" Text="Palette BMP" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox Name="MapTransPaletteComboBox" Width="300" SelectionChanged="OnSelectionChanged" />
+            <Button Content="Browse" Click="OnBrowsePalette" />
+            <Button Content="Import ACT" Click="OnImportActPalette" />
+            <Button Content="Random" Click="OnGeneratePalette" />
+            <Border Width="96" Height="16" BorderBrush="#555" BorderThickness="1">
+              <Image Name="MapTransPaletteImage" Stretch="Fill" />
+            </Border>
+          </StackPanel>
+
+          <TextBlock Grid.Row="9" Grid.Column="0" Text="Terrain Encoding" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <ComboBox Name="TerrainEncodingComboBox" Width="220" SelectionChanged="OnSelectionChanged" />
           </StackPanel>
 
-          <TextBlock Grid.Row="8" Grid.Column="0" Text="Tile Color JSON" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="8" Grid.Column="1" Spacing="4">
+          <CheckBox Grid.Row="10" Grid.ColumnSpan="2" Name="AltitudeColorCheckBox"
+                    Content="Color altitude using Altitude.xml (24-bit)"
+                    IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+
+          <TextBlock Grid.Row="11" Grid.Column="0" Text="Tile Color JSON" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="11" Grid.Column="1" Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox Name="TileJsonPathBox" Width="300" TextChanged="OnTextChanged" />
               <Button Content="Browse" Click="OnBrowseTileJson" />
@@ -71,50 +93,38 @@
             <TextBlock Name="TileJsonModeText" />
           </StackPanel>
 
-          <TextBlock Grid.Row="9" Grid.Column="0" Text="Tile Replace JSON" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBlock Grid.Row="12" Grid.Column="0" Text="Tile Replace JSON" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <TextBox Name="TileReplacePathBox" Width="300" TextChanged="OnTextChanged" />
             <Button Content="Browse" Click="OnBrowseTileReplace" />
             <CheckBox Name="ApplyTileReplaceCheckBox" Content="Use replace map" IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
           </StackPanel>
 
-          <CheckBox Grid.Row="10" Grid.ColumnSpan="2" Name="IncludeStaticsCheckBox" Content="Include statics" IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-          <TextBlock Grid.Row="11" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />
+          <CheckBox Grid.Row="13" Grid.ColumnSpan="2" Name="IncludeStaticsCheckBox" Content="Include statics" IsChecked="False" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+          <StackPanel Grid.Row="14" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+            <Button Name="GenerateButton" Content="Generate BMP" Click="OnGenerate" />
+            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
+            <TextBlock Name="StatusTextPreview" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Row="15" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />
+          <StackPanel Grid.Row="16" Grid.ColumnSpan="2" IsVisible="False">
+            <Button Name="LoadPreviewButton" Content="Load BMP Preview" Click="OnLoadPreview" />
+            <ScrollViewer Name="PreviewScroll"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          PointerWheelChanged="OnPreviewWheel"
+                          PointerPressed="OnPreviewPanPressed"
+                          PointerMoved="OnPreviewPanMoved"
+                          PointerReleased="OnPreviewPanReleased">
+              <Image Name="PreviewImage"
+                     Stretch="Fill"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top" />
+            </ScrollViewer>
+            <TextBlock Name="PreviewInfoText" Margin="0,8,0,0" />
+          </StackPanel>
         </Grid>
       </ScrollViewer>
-    </TabItem>
-    <TabItem Header="Preview">
-      <Grid Margin="8" RowDefinitions="Auto,*">
-        <StackPanel Grid.Row="0" Spacing="6">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="Output Name" VerticalAlignment="Center" />
-            <TextBox Name="OutputBaseNameBox" Width="180" TextChanged="OnTextChanged" />
-            <CheckBox Name="UseMapNameCheckBox" Content="Use map.mul name" IsChecked="True" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Name="GenerateButton" Content="Generate BMP" Click="OnGenerate" />
-            <Button Name="LoadPreviewButton" Content="Load BMP Preview" Click="OnLoadPreview" />
-            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
-            <TextBlock Name="StatusTextPreview" />
-          </StackPanel>
-        </StackPanel>
-        <Grid Grid.Row="1" Margin="0,8,0,0" RowDefinitions="*,Auto">
-          <ScrollViewer Name="PreviewScroll"
-                        Grid.Row="0"
-                        HorizontalScrollBarVisibility="Auto"
-                        VerticalScrollBarVisibility="Auto"
-                        PointerWheelChanged="OnPreviewWheel"
-                        PointerPressed="OnPreviewPanPressed"
-                        PointerMoved="OnPreviewPanMoved"
-                        PointerReleased="OnPreviewPanReleased">
-            <Image Name="PreviewImage"
-                   Stretch="Fill"
-                   HorizontalAlignment="Left"
-                   VerticalAlignment="Top" />
-          </ScrollViewer>
-          <TextBlock Grid.Row="1" Name="PreviewInfoText" Margin="0,8,0,0" />
-        </Grid>
-      </Grid>
     </TabItem>
   </TabControl>
 </UserControl>

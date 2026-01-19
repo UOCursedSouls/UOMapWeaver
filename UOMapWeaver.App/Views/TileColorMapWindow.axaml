@@ -1,34 +1,105 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="UOMapWeaver.App.Views.TileColorMapView">
-  <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="Auto,*">
-    <TextBlock Grid.Row="0" Grid.Column="0" Text="JSON File" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <TextBox Name="JsonPathBox" Width="360" TextChanged="OnTextChanged" />
-      <Button Content="Browse" Click="OnBrowseJson" />
-      <Button Content="Load" Click="OnLoadJson" />
-    </StackPanel>
-    <TextBlock Grid.Row="1" Grid.Column="1" Name="JsonInfoText" />
+  <TabControl Margin="8">
+    <TabItem Header="Tile Colors">
+      <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="JSON File" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="JsonPathBox" Width="360" TextChanged="OnTextChanged" />
+          <Button Content="Browse" Click="OnBrowseJson" />
+          <Button Content="Load" Click="OnLoadJson" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Grid.Column="1" Name="JsonInfoText" />
 
-    <TextBlock Grid.Row="2" Grid.Column="0" Text="Mode" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <ComboBox Name="ModeComboBox" Width="180" SelectionChanged="OnSelectionChanged" />
-      <TextBlock Name="ModeHintText" VerticalAlignment="Center" />
-    </StackPanel>
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Mode" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <ComboBox Name="ModeComboBox" Width="180" SelectionChanged="OnSelectionChanged" />
+          <TextBlock Name="ModeHintText" VerticalAlignment="Center" />
+        </StackPanel>
 
-    <TextBlock Grid.Row="3" Grid.Column="0" Text="Map.mul files" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <Button Content="Add" Click="OnAddMap" />
-      <Button Content="Remove" Click="OnRemoveMap" />
-      <Button Content="Clear" Click="OnClearMaps" />
-    </StackPanel>
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Map.mul files" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="Add" Click="OnAddMap" />
+          <Button Content="Remove" Click="OnRemoveMap" />
+          <Button Content="Clear" Click="OnClearMaps" />
+        </StackPanel>
 
-    <ListBox Grid.Row="4" Grid.Column="1" Name="MapListBox" Height="260" />
+        <ListBox Grid.Row="4" Grid.Column="1" Name="MapListBox" Height="260" />
 
-    <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-      <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
-      <Button Content="Build JSON" Click="OnBuild" />
-      <TextBlock Name="StatusText" VerticalAlignment="Center" />
-    </StackPanel>
-  </Grid>
+        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
+          <Button Content="Build JSON" Click="OnBuild" />
+          <TextBlock Name="StatusText" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </TabItem>
+    <TabItem Header="Import Terrain">
+      <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Terrain.xml" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="TerrainXmlBox" Width="360" TextChanged="OnImportTextChanged" />
+          <Button Content="Browse" Click="OnBrowseTerrainXml" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="TerrainTypes folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="TerrainTypesBox" Width="360" TextChanged="OnImportTextChanged" />
+          <Button Content="Browse" Click="OnBrowseTerrainTypes" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Output folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="ImportOutputBox" Width="360" TextChanged="OnImportTextChanged" />
+          <Button Content="Browse" Click="OnBrowseImportOutput" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <CheckBox Name="ImportOverwriteCheckBox" Content="Overwrite existing JSON" />
+          <Button Content="Convert to JSON" Click="OnImportXml" />
+          <Button Content="Regenerate Defaults" Click="OnRegenerateDefaults" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="4" Grid.Column="1" Name="ImportInfoText" />
+        <TextBlock Grid.Row="5" Grid.Column="1" Name="ImportStatusText" TextWrapping="Wrap" />
+      </Grid>
+    </TabItem>
+    <TabItem Header="XML Folders">
+      <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Transitions folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="FolderTransitionsBox" Width="360" TextChanged="OnFolderTextChanged" />
+          <Button Content="Browse" Click="OnBrowseFolderTransitions" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Templates folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="FolderTemplatesBox" Width="360" TextChanged="OnFolderTextChanged" />
+          <Button Content="Browse" Click="OnBrowseFolderTemplates" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="RoughEdge folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="FolderRoughEdgeBox" Width="360" TextChanged="OnFolderTextChanged" />
+          <Button Content="Browse" Click="OnBrowseFolderRoughEdge" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Output folder" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="FolderOutputBox" Width="360" TextChanged="OnFolderTextChanged" />
+          <Button Content="Browse" Click="OnBrowseFolderOutput" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <CheckBox Name="FolderOverwriteCheckBox" Content="Overwrite existing JSON" />
+          <CheckBox Name="FolderCompactCheckBox" Content="Compact JSON" IsChecked="False" />
+          <Button Content="Convert to JSON" Click="OnConvertXmlFolders" />
+          <Button Content="Validate JSON" Click="OnValidateXmlFolders" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" Grid.Column="1" Name="FolderInfoText" />
+        <TextBlock Grid.Row="6" Grid.Column="1" Name="FolderStatusText" TextWrapping="Wrap" />
+      </Grid>
+    </TabItem>
+  </TabControl>
 </UserControl>

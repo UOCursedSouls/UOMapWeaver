@@ -7,11 +7,13 @@ using System.Xml.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using UOMapWeaver.App;
 using UOMapWeaver.App.Defaults;
 using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
+using UOMapWeaver.Core.TileColors;
 using static UOMapWeaver.App.Views.ViewHelpers;
 using FieldState = UOMapWeaver.App.Views.ViewHelpers.FieldState;
 
@@ -22,6 +24,8 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     private readonly List<MapPreset> _presets = new();
     private MapPreset? _lastPresetSelection;
     private readonly List<FillModeOption> _fillModes = new();
+    private readonly List<TerrainOutputOption> _terrainOutputModes = new();
+    private readonly List<AltitudeOutputOption> _altitudeOutputModes = new();
     private readonly List<TerrainFillOption> _terrainOptions = new();
     private readonly List<PaletteOption> _paletteOptions = new();
     private bool _loadingState;
@@ -29,6 +33,8 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
     public BlankBmpView()
     {
         InitializeComponent();
+        LoadTerrainOutputModes();
+        LoadAltitudeOutputModes();
         LoadFillModes();
         LoadTerrainOptions();
         LoadPaletteOptions();
@@ -52,7 +58,10 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
 
         if (!File.Exists(path))
         {
-            SaveDefaultPresets(path);
+            AppStatus.AppendLog($"Preset file not found at {path}.", AppStatusSeverity.Warning);
+            StatusText.Text = "Preset file not found.";
+            AppStatus.SetWarning(StatusText.Text);
+            return;
         }
 
         try
@@ -94,23 +103,8 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(PalettePathBox.Text) || !File.Exists(PalettePathBox.Text))
-        {
-            StatusText.Text = "Palette BMP not found.";
-            AppStatus.SetError(StatusText.Text);
-            AppStatus.SetCancelSource(null);
-            SetBusy(false);
-            return;
-        }
-
-        if (!IsValidPalette(PalettePathBox.Text, out var paletteError))
-        {
-            StatusText.Text = paletteError;
-            AppStatus.SetError(StatusText.Text);
-            AppStatus.SetCancelSource(null);
-            SetBusy(false);
-            return;
-        }
+        var terrainOutput = GetTerrainOutputMode();
+        var altitudeOutput = GetAltitudeOutputMode();
 
         if (string.IsNullOrWhiteSpace(OutputFolderBox.Text) || !Directory.Exists(OutputFolderBox.Text))
         {
@@ -121,7 +115,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             return;
         }
 
-        if (!TryGetFillIndex(out var fillIndex, out var fillError))
+        if (!TryGetFillTerrain(out var fillIndex, out var fillColor, out var fillError))
         {
             StatusText.Text = fillError;
             AppStatus.SetError(StatusText.Text);
@@ -171,31 +165,126 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
 
             AppStatus.AppendLog("Blank BMP generation start.", AppStatusSeverity.Info);
             AppStatus.AppendLog($"Size: {width}x{height}", AppStatusSeverity.Info);
-            var palettePath = PalettePathBox.Text!;
-            AppStatus.AppendLog($"Palette: {palettePath}", AppStatusSeverity.Info);
-            AppStatus.AppendLog($"Fill terrain index: {fillIndex}", AppStatusSeverity.Info);
-            AppStatus.AppendLog($"Fill altitude Z: {fillAltitude}", AppStatusSeverity.Info);
+            AppStatus.AppendLog($"Terrain output: {terrainOutput}", AppStatusSeverity.Info);
+            AppStatus.AppendLog($"Altitude output: {altitudeOutput}", AppStatusSeverity.Info);
+            var palettePath = PalettePathBox.Text ?? string.Empty;
+            if (RequiresPalette(terrainOutput, GetFillMode()))
+            {
+                AppStatus.AppendLog($"Palette: {palettePath}", AppStatusSeverity.Info);
+            }
+            AppStatus.AppendLog($"Fill terrain: index {fillIndex}, rgb({fillColor.R},{fillColor.G},{fillColor.B})",
+                AppStatusSeverity.Info);
+            var altitudeColorLog = altitudeOutput == AltitudeOutputMode.AltitudeXml24
+                ? " (Altitude.xml)"
+                : " (grayscale)";
+            AppStatus.AppendLog($"Fill altitude Z: {fillAltitude}{altitudeColorLog}", AppStatusSeverity.Info);
             AppStatus.AppendLog($"Output: {terrainPath}, {altitudePath}", AppStatusSeverity.Info);
 
-            var palette = await Task.Run(() => Bmp8Codec.Read(palettePath).Palette, cancelSource.Token);
+            if (GetFillMode() == FillMode.TerrainXml && !File.Exists(UOMapWeaverDataPaths.TerrainDefinitionsPath))
+            {
+                AppStatus.AppendLog($"Terrain definitions not found: {UOMapWeaverDataPaths.TerrainDefinitionsPath}",
+                    AppStatusSeverity.Warning);
+            }
+
+            var palette = Array.Empty<BmpPaletteEntry>();
+            if (RequiresPalette(terrainOutput, GetFillMode()))
+            {
+                if (!TryResolvePalette(out palette, out var paletteError))
+                {
+                    StatusText.Text = paletteError;
+                    AppStatus.SetError(StatusText.Text);
+                    AppStatus.SetCancelSource(null);
+                    SetBusy(false);
+                    return;
+                }
+            }
+
+            Dictionary<sbyte, RgbColor> altitudeColors = new();
+            if (altitudeOutput == AltitudeOutputMode.AltitudeXml24)
+            {
+                var altitudePathXml = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml");
+                altitudeColors = LoadAltitudeColors(altitudePathXml);
+                if (altitudeColors.Count == 0)
+                {
+                    AppStatus.AppendLog($"Altitude.xml not found or empty: {altitudePathXml}. Using grayscale.",
+                        AppStatusSeverity.Warning);
+                }
+            }
 
             IProgress<int> progress = CreateAppProgress();
 
             await Task.Run(() =>
             {
-                using var terrainWriter = new Bmp8StreamWriter(terrainPath, width, height, palette);
-                using var altitudeWriter = new Bmp8StreamWriter(altitudePath, width, height, Bmp8Codec.CreateGrayscalePalette());
-                var terrainRow = new byte[width];
-                var altitudeRow = new byte[width];
-                Array.Fill(terrainRow, fillIndex);
-                Array.Fill(altitudeRow, EncodeAltitude(fillAltitude));
+                var altitudeGrayscale = EncodeAltitude(fillAltitude);
+                Bmp8StreamWriter? terrain8 = null;
+                Bmp24StreamWriter? terrain24 = null;
+                Bmp8StreamWriter? altitude8 = null;
+                Bmp24StreamWriter? altitude24 = null;
+
+                if (terrainOutput == TerrainOutputMode.Palette8)
+                {
+                    terrain8 = new Bmp8StreamWriter(terrainPath, width, height, palette);
+                }
+                else
+                {
+                    terrain24 = new Bmp24StreamWriter(terrainPath, width, height);
+                }
+
+                if (altitudeOutput == AltitudeOutputMode.Grayscale8)
+                {
+                    altitude8 = new Bmp8StreamWriter(altitudePath, width, height, Bmp8Codec.CreateGrayscalePalette());
+                }
+                else
+                {
+                    altitude24 = new Bmp24StreamWriter(altitudePath, width, height);
+                }
+
+                var terrainRow8 = terrain8 != null ? new byte[width] : Array.Empty<byte>();
+                var terrainRow24 = terrain24 != null ? new byte[width * 3] : Array.Empty<byte>();
+                var altitudeRow8 = altitude8 != null ? new byte[width] : Array.Empty<byte>();
+                var altitudeRow24 = altitude24 != null ? new byte[width * 3] : Array.Empty<byte>();
+
+                if (terrain8 != null)
+                {
+                    Array.Fill(terrainRow8, fillIndex);
+                }
+                else
+                {
+                    for (var x = 0; x < width; x++)
+                    {
+                        var offset = x * 3;
+                        terrainRow24[offset] = fillColor.R;
+                        terrainRow24[offset + 1] = fillColor.G;
+                        terrainRow24[offset + 2] = fillColor.B;
+                    }
+                }
+
+                if (altitude8 != null)
+                {
+                    Array.Fill(altitudeRow8, altitudeGrayscale);
+                }
+                else
+                {
+                    var color = altitudeColors.TryGetValue(fillAltitude, out var altitudeColor)
+                        ? altitudeColor
+                        : new RgbColor(altitudeGrayscale, altitudeGrayscale, altitudeGrayscale);
+                    for (var x = 0; x < width; x++)
+                    {
+                        var offset = x * 3;
+                        altitudeRow24[offset] = color.R;
+                        altitudeRow24[offset + 1] = color.G;
+                        altitudeRow24[offset + 2] = color.B;
+                    }
+                }
 
                 var lastProgress = -1;
                 for (var y = height - 1; y >= 0; y--)
                 {
                     cancelSource.Token.ThrowIfCancellationRequested();
-                    terrainWriter.WriteRow(terrainRow);
-                    altitudeWriter.WriteRow(altitudeRow);
+                    terrain8?.WriteRow(terrainRow8);
+                    terrain24?.WriteRow(terrainRow24);
+                    altitude8?.WriteRow(altitudeRow8);
+                    altitude24?.WriteRow(altitudeRow24);
 
                     var percent = (int)((height - y) * 100.0 / height);
                     if (percent != lastProgress)
@@ -204,6 +293,11 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
                         progress.Report(percent);
                     }
                 }
+
+                terrain8?.Dispose();
+                terrain24?.Dispose();
+                altitude8?.Dispose();
+                altitude24?.Dispose();
             }, cancelSource.Token);
 
             StatusText.Text = $"Generated {Path.GetFileName(terrainPath)} and {Path.GetFileName(altitudePath)}.";
@@ -264,6 +358,12 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         SaveState();
     }
 
+    private void OnOutputModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateStatus();
+        SaveState();
+    }
+
     private void OnTerrainChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (FillTerrainComboBox.SelectedItem is TerrainFillOption terrain)
@@ -271,6 +371,10 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             FillRBox.Text = terrain.R.ToString();
             FillGBox.Text = terrain.G.ToString();
             FillBBox.Text = terrain.B.ToString();
+            if (terrain.Altitude.HasValue)
+            {
+                FillAltitudeBox.Text = terrain.Altitude.Value.ToString();
+            }
         }
 
         UpdateStatus();
@@ -283,6 +387,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         {
             PalettePathBox.Text = option.Path;
         }
+        UpdatePalettePreview();
         SaveState();
     }
 
@@ -316,17 +421,22 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         SetFieldState(MapWidthBox, widthOk ? sizeState : FieldState.Error);
         SetFieldState(MapHeightBox, heightOk ? sizeState : FieldState.Error);
 
+        var terrainOutput = GetTerrainOutputMode();
+        var altitudeOutput = GetAltitudeOutputMode();
+        var needsPalette = RequiresPalette(terrainOutput, GetFillMode());
+        EnsureCompatibleFillMode(terrainOutput);
+
         if (!string.IsNullOrWhiteSpace(PalettePathBox.Text))
         {
             if (!File.Exists(PalettePathBox.Text))
             {
                 PaletteInfoText.Text = "Palette file not found.";
-                SetFieldState(PalettePathBox, FieldState.Error);
+                SetFieldState(PalettePathBox, needsPalette ? FieldState.Error : FieldState.Warning);
             }
             else if (!IsValidPalette(PalettePathBox.Text, out var paletteError))
             {
                 PaletteInfoText.Text = paletteError;
-                SetFieldState(PalettePathBox, FieldState.Error);
+                SetFieldState(PalettePathBox, needsPalette ? FieldState.Error : FieldState.Warning);
             }
             else
             {
@@ -337,8 +447,12 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         else
         {
             PaletteInfoText.Text = string.Empty;
-            SetFieldState(PalettePathBox, FieldState.Error);
+            SetFieldState(PalettePathBox, needsPalette ? FieldState.Error : FieldState.Neutral);
         }
+
+        PalettePathBox.IsEnabled = needsPalette;
+        PaletteQuickComboBox.IsEnabled = needsPalette;
+        UpdatePalettePreview();
 
         if (string.IsNullOrWhiteSpace(OutputFolderBox.Text) || !Directory.Exists(OutputFolderBox.Text))
         {
@@ -381,21 +495,56 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             SetFieldState(FillBBox, FieldState.Neutral);
         }
 
-        if (TryGetFillIndex(out var fillIndex, out _))
+        if (TryGetFillTerrain(out var fillIndex, out var fillColor, out _))
         {
             if (GetFillMode() == FillMode.TerrainXml &&
                 FillTerrainComboBox.SelectedItem is TerrainFillOption terrain)
             {
-                FillResolvedText.Text = $"{terrain.Name} -> Index {fillIndex}";
+                FillResolvedText.Text = needsPalette
+                    ? $"{terrain.Name} -> Index {fillIndex}"
+                    : $"{terrain.Name} -> RGB({fillColor.R},{fillColor.G},{fillColor.B})";
             }
             else
             {
-                FillResolvedText.Text = $"Index: {fillIndex}";
+                FillResolvedText.Text = needsPalette
+                    ? $"Index: {fillIndex}"
+                    : $"RGB({fillColor.R},{fillColor.G},{fillColor.B})";
             }
+
+            FillColorSwatch.Background = new SolidColorBrush(Color.FromRgb(fillColor.R, fillColor.G, fillColor.B));
         }
         else
         {
             FillResolvedText.Text = string.Empty;
+            FillColorSwatch.Background = null;
+        }
+
+        if (TryGetFillAltitude(out var fillAltitude, out _))
+        {
+            if (altitudeOutput == AltitudeOutputMode.AltitudeXml24)
+            {
+                var altitudePath = Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml");
+                var altitudeColors = LoadAltitudeColors(altitudePath);
+                if (altitudeColors.TryGetValue(fillAltitude, out var altitudeColor))
+                {
+                    FillAltitudeSwatch.Background = new SolidColorBrush(Color.FromRgb(
+                        altitudeColor.R, altitudeColor.G, altitudeColor.B));
+                }
+                else
+                {
+                    var grayscale = EncodeAltitude(fillAltitude);
+                    FillAltitudeSwatch.Background = new SolidColorBrush(Color.FromRgb(grayscale, grayscale, grayscale));
+                }
+            }
+            else
+            {
+                var grayscale = EncodeAltitude(fillAltitude);
+                FillAltitudeSwatch.Background = new SolidColorBrush(Color.FromRgb(grayscale, grayscale, grayscale));
+            }
+        }
+        else
+        {
+            FillAltitudeSwatch.Background = null;
         }
 
         SetFieldState(FillAltitudeBox, TryGetFillAltitude(out _, out _) ? FieldState.Valid : FieldState.Error);
@@ -433,7 +582,12 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         var path = GetPresetPath();
         if (!File.Exists(path))
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? UOMapWeaverDataPaths.PresetsRoot);
             SaveDefaultPresets(path);
+            AppStatus.AppendLog($"Preset file not found at {path}.", AppStatusSeverity.Warning);
+            _presets.Clear();
+            PresetComboBox.ItemsSource = _presets;
+            return;
         }
 
         try
@@ -446,7 +600,6 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         catch
         {
             _presets.Clear();
-            _presets.AddRange(GetDefaultPresets());
         }
 
         PresetComboBox.ItemsSource = _presets;
@@ -457,10 +610,38 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         _fillModes.Clear();
         _fillModes.Add(new FillModeOption(FillMode.PaletteIndex, "Palette Index"));
         _fillModes.Add(new FillModeOption(FillMode.Rgb, "RGB"));
-        _fillModes.Add(new FillModeOption(FillMode.TerrainXml, "Terrain.json"));
+        _fillModes.Add(new FillModeOption(FillMode.TerrainXml, "Terrain.xml"));
         FillModeComboBox.ItemsSource = _fillModes;
         FillModeComboBox.SelectedIndex = 0;
     }
+
+    private void LoadTerrainOutputModes()
+    {
+        _terrainOutputModes.Clear();
+        _terrainOutputModes.Add(new TerrainOutputOption(TerrainOutputMode.Palette8, "Palette (8-bit)"));
+        _terrainOutputModes.Add(new TerrainOutputOption(TerrainOutputMode.Rgb24, "RGB (24-bit)"));
+        TerrainOutputComboBox.ItemsSource = _terrainOutputModes;
+        TerrainOutputComboBox.SelectedIndex = 0;
+    }
+
+    private void LoadAltitudeOutputModes()
+    {
+        _altitudeOutputModes.Clear();
+        _altitudeOutputModes.Add(new AltitudeOutputOption(AltitudeOutputMode.Grayscale8, "Grayscale (8-bit)"));
+        _altitudeOutputModes.Add(new AltitudeOutputOption(AltitudeOutputMode.AltitudeXml24, "Altitude.xml (24-bit)"));
+        AltitudeOutputComboBox.ItemsSource = _altitudeOutputModes;
+        AltitudeOutputComboBox.SelectedIndex = 0;
+    }
+
+    private TerrainOutputMode GetTerrainOutputMode()
+        => TerrainOutputComboBox.SelectedItem is TerrainOutputOption option
+            ? option.Mode
+            : TerrainOutputMode.Palette8;
+
+    private AltitudeOutputMode GetAltitudeOutputMode()
+        => AltitudeOutputComboBox.SelectedItem is AltitudeOutputOption option
+            ? option.Mode
+            : AltitudeOutputMode.Grayscale8;
 
     private FillMode GetFillMode()
     {
@@ -479,10 +660,11 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         FillTerrainComboBox.IsVisible = mode == FillMode.TerrainXml;
     }
 
-    private bool TryGetFillIndex(out byte fillIndex, out string error)
+    private bool TryGetFillTerrain(out byte fillIndex, out RgbColor fillColor, out string error)
     {
         error = string.Empty;
         fillIndex = 0;
+        fillColor = default;
 
         var mode = GetFillMode();
         if (mode == FillMode.PaletteIndex)
@@ -494,6 +676,11 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             }
 
             fillIndex = (byte)value;
+            if (TryResolvePalette(out var palette, out error))
+            {
+                var entry = palette[fillIndex];
+                fillColor = new RgbColor(entry.Red, entry.Green, entry.Blue);
+            }
             return true;
         }
 
@@ -515,7 +702,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         {
             if (FillTerrainComboBox.SelectedItem is not TerrainFillOption terrain)
             {
-                error = "Select a terrain from Terrain.json.";
+                error = "Select a terrain from Terrain.xml.";
                 return false;
             }
 
@@ -524,19 +711,16 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
             b = terrain.B;
         }
 
-        if (string.IsNullOrWhiteSpace(PalettePathBox.Text) || !File.Exists(PalettePathBox.Text))
+        fillColor = new RgbColor(r, g, b);
+        if (RequiresPalette(GetTerrainOutputMode(), mode))
         {
-            error = "Palette BMP required to resolve RGB.";
-            return false;
-        }
+            if (!TryResolvePalette(out var palette, out error))
+            {
+                return false;
+            }
 
-        if (!IsValidPalette(PalettePathBox.Text, out error))
-        {
-            return false;
+            fillIndex = PaletteUtils.FindNearestIndex(palette, r, g, b);
         }
-
-        var palette = Bmp8Codec.Read(PalettePathBox.Text).Palette;
-        fillIndex = PaletteUtils.FindNearestIndex(palette, r, g, b);
         return true;
     }
 
@@ -566,6 +750,107 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         return value > 255 ? (byte)255 : (byte)value;
     }
 
+    private bool TryResolvePalette(out BmpPaletteEntry[] palette, out string error)
+    {
+        palette = Array.Empty<BmpPaletteEntry>();
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(PalettePathBox.Text) || !File.Exists(PalettePathBox.Text))
+        {
+            error = "Palette BMP required.";
+            return false;
+        }
+
+        if (!IsValidPalette(PalettePathBox.Text, out error))
+        {
+            return false;
+        }
+
+        palette = Bmp8Codec.Read(PalettePathBox.Text).Palette;
+        return true;
+    }
+
+    private static bool RequiresPalette(TerrainOutputMode outputMode, FillMode fillMode)
+        => outputMode == TerrainOutputMode.Palette8 || fillMode == FillMode.PaletteIndex;
+
+    private void EnsureCompatibleFillMode(TerrainOutputMode outputMode)
+    {
+        if (_loadingState)
+        {
+            return;
+        }
+
+        if (outputMode == TerrainOutputMode.Rgb24 && GetFillMode() == FillMode.PaletteIndex)
+        {
+            var rgbOption = _fillModes.FirstOrDefault(option => option.Mode == FillMode.Rgb);
+            if (rgbOption != null)
+            {
+                FillModeComboBox.SelectedItem = rgbOption;
+            }
+        }
+    }
+
+    private void UpdatePalettePreview()
+    {
+        if (PalettePreviewImage == null)
+        {
+            return;
+        }
+
+        var path = PalettePathBox.Text;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            PalettePreviewImage.Source = null;
+            return;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            PalettePreviewImage.Source = new Bitmap(stream);
+        }
+        catch
+        {
+            PalettePreviewImage.Source = null;
+        }
+    }
+
+    private static Dictionary<sbyte, RgbColor> LoadAltitudeColors(string path)
+    {
+        var result = new Dictionary<sbyte, RgbColor>();
+        if (!File.Exists(path))
+        {
+            return result;
+        }
+
+        try
+        {
+            var doc = XDocument.Load(path);
+            foreach (var node in doc.Descendants("Altitude"))
+            {
+                if (!TryParseByte(node.Attribute("R")?.Value, out var r) ||
+                    !TryParseByte(node.Attribute("G")?.Value, out var g) ||
+                    !TryParseByte(node.Attribute("B")?.Value, out var b) ||
+                    !int.TryParse(node.Attribute("Altitude")?.Value, out var altitude))
+                {
+                    continue;
+                }
+
+                var clamped = (sbyte)Math.Clamp(altitude, sbyte.MinValue, sbyte.MaxValue);
+                if (!result.ContainsKey(clamped))
+                {
+                    result[clamped] = new RgbColor(r, g, b);
+                }
+            }
+        }
+        catch
+        {
+            result.Clear();
+        }
+
+        return result;
+    }
+
     private void LoadTerrainOptions()
     {
         _terrainOptions.Clear();
@@ -593,6 +878,10 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
                 var rText = element.Attribute("R")?.Value;
                 var gText = element.Attribute("G")?.Value;
                 var bText = element.Attribute("B")?.Value;
+                var altitudeText = element.Attribute("Altitude")?.Value
+                                   ?? element.Attribute("Z")?.Value
+                                   ?? element.Attribute("Alt")?.Value;
+                var altitude = TryParseSByte(altitudeText, out var parsedAltitude) ? parsedAltitude : (sbyte?)null;
                 if (string.IsNullOrWhiteSpace(name) ||
                     string.IsNullOrWhiteSpace(tileText) ||
                     !TryParseUShort(tileText, out var tileId) ||
@@ -603,7 +892,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
                     continue;
                 }
 
-                _terrainOptions.Add(new TerrainFillOption(name, tileId, r, g, b));
+                _terrainOptions.Add(new TerrainFillOption(name, tileId, r, g, b, altitude));
             }
         }
         catch
@@ -638,12 +927,6 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
 
             foreach (var file in Directory.EnumerateFiles(root, "*.bmp", SearchOption.AllDirectories))
             {
-                if (!file.EndsWith("ColorPalette.bmp", StringComparison.OrdinalIgnoreCase) &&
-                    !file.EndsWith("Palette.bmp", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 if (!IsValidPalette(file, out _))
                 {
                     continue;
@@ -668,8 +951,16 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
 
     private static void SaveDefaultPresets(string path)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
-        var json = JsonSerializer.Serialize(GetDefaultPresets(), new JsonSerializerOptions { WriteIndented = true });
+        var presets = GetDefaultPresets();
+        if (presets.Count == 0)
+        {
+            return;
+        }
+
+        var json = JsonSerializer.Serialize(presets, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
         File.WriteAllText(path, json);
     }
 
@@ -762,6 +1053,12 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         return byte.TryParse(text, out value);
     }
 
+    private static bool TryParseSByte(string? text, out sbyte value)
+    {
+        value = 0;
+        return sbyte.TryParse(text, out value);
+    }
+
     private static bool IsValidPalette(string path, out string error)
     {
         error = string.Empty;
@@ -807,6 +1104,25 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         FillRBox.Text = AppSettings.GetString("BlankBmp.FillR", FillRBox.Text ?? string.Empty);
         FillGBox.Text = AppSettings.GetString("BlankBmp.FillG", FillGBox.Text ?? string.Empty);
         FillBBox.Text = AppSettings.GetString("BlankBmp.FillB", FillBBox.Text ?? string.Empty);
+        var terrainOutputText = AppSettings.GetString("BlankBmp.TerrainOutput", string.Empty);
+        if (Enum.TryParse<TerrainOutputMode>(terrainOutputText, out var terrainOutput))
+        {
+            var match = _terrainOutputModes.FirstOrDefault(option => option.Mode == terrainOutput);
+            if (match != null)
+            {
+                TerrainOutputComboBox.SelectedItem = match;
+            }
+        }
+
+        var altitudeOutputText = AppSettings.GetString("BlankBmp.AltitudeOutput", string.Empty);
+        if (Enum.TryParse<AltitudeOutputMode>(altitudeOutputText, out var altitudeOutput))
+        {
+            var match = _altitudeOutputModes.FirstOrDefault(option => option.Mode == altitudeOutput);
+            if (match != null)
+            {
+                AltitudeOutputComboBox.SelectedItem = match;
+            }
+        }
 
         var fillModeText = AppSettings.GetString("BlankBmp.FillMode", string.Empty);
         if (Enum.TryParse<FillMode>(fillModeText, out var fillMode))
@@ -835,6 +1151,7 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         }
 
         _loadingState = false;
+        UpdatePalettePreview();
     }
 
     private void SaveState()
@@ -855,6 +1172,8 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         AppSettings.SetString("BlankBmp.FillG", FillGBox.Text ?? string.Empty);
         AppSettings.SetString("BlankBmp.FillB", FillBBox.Text ?? string.Empty);
         AppSettings.SetInt("BlankBmp.PresetIndex", PresetComboBox.SelectedIndex);
+        AppSettings.SetString("BlankBmp.TerrainOutput", GetTerrainOutputMode().ToString());
+        AppSettings.SetString("BlankBmp.AltitudeOutput", GetAltitudeOutputMode().ToString());
 
         var fillMode = GetFillMode();
         AppSettings.SetString("BlankBmp.FillMode", fillMode.ToString());
@@ -915,15 +1234,58 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         TerrainXml
     }
 
+    private sealed class TerrainOutputOption
+    {
+        public TerrainOutputOption(TerrainOutputMode mode, string name)
+        {
+            Mode = mode;
+            Name = name;
+        }
+
+        public TerrainOutputMode Mode { get; }
+
+        public string Name { get; }
+
+        public override string ToString() => Name;
+    }
+
+    private enum TerrainOutputMode
+    {
+        Palette8,
+        Rgb24
+    }
+
+    private sealed class AltitudeOutputOption
+    {
+        public AltitudeOutputOption(AltitudeOutputMode mode, string name)
+        {
+            Mode = mode;
+            Name = name;
+        }
+
+        public AltitudeOutputMode Mode { get; }
+
+        public string Name { get; }
+
+        public override string ToString() => Name;
+    }
+
+    private enum AltitudeOutputMode
+    {
+        Grayscale8,
+        AltitudeXml24
+    }
+
     private sealed class TerrainFillOption
     {
-        public TerrainFillOption(string name, ushort tileId, byte r, byte g, byte b)
+        public TerrainFillOption(string name, ushort tileId, byte r, byte g, byte b, sbyte? altitude)
         {
             Name = name;
             TileId = tileId;
             R = r;
             G = g;
             B = b;
+            Altitude = altitude;
         }
 
         public string Name { get; }
@@ -935,6 +1297,8 @@ public sealed partial class BlankBmpView : UserControl, IAppStateView
         public byte G { get; }
 
         public byte B { get; }
+
+        public sbyte? Altitude { get; }
 
         public override string ToString() => $"{Name} (0x{TileId:X4}) RGB({R},{G},{B})";
     }

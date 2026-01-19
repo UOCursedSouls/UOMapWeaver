@@ -70,7 +70,14 @@ public sealed class Bmp24StreamWriter : IDisposable
         }
 
         Array.Clear(_rowBuffer, 0, _rowBuffer.Length);
-        row[..expectedLength].CopyTo(_rowBuffer);
+        for (var x = 0; x < _width; x++)
+        {
+            var src = x * 3;
+            var dst = x * 3;
+            _rowBuffer[dst] = row[src + 2];
+            _rowBuffer[dst + 1] = row[src + 1];
+            _rowBuffer[dst + 2] = row[src];
+        }
         _stream.Write(_rowBuffer, 0, _rowBuffer.Length);
         _rowsWritten++;
     }

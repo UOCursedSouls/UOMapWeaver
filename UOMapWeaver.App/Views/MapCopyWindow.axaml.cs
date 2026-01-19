@@ -236,7 +236,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
 
     private async void OnBrowsePreviewMapTrans(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await PickFileAsync(this, "Select MapTrans profile", new[] { "txt" });
+        var path = await PickFileAsync(this, "Select MapTrans profile", new[] { "txt", "json" });
         if (!string.IsNullOrWhiteSpace(path))
         {
             AddPreviewMapTransOption(path);
@@ -277,6 +277,16 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         {
             AppStatus.SetError("Map sizes not detected.");
             return;
+        }
+
+        if (AreSourceRegionFieldsEmpty())
+        {
+            var fullRect = new RectInt(0, 0, sourceWidth, sourceHeight);
+            _sourceSelectionPixels = fullRect;
+            UpdateRegionFieldsFromSelection(fullRect);
+            UpdateSourceSelectionVisual();
+            UpdateOverlayFromSelection();
+            SaveState();
         }
 
         if (!TryGetSourceRectFromFields(out var cropRect))
@@ -371,6 +381,10 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                     }
 
                     profile = MapTransParser.LoadFromFile(selected);
+                    if (selected.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AppStatus.AppendLog($"MapTrans loaded from TXT: {Path.GetFileName(selected)}", AppStatusSeverity.Warning);
+                    }
                     palette = LoadPreviewPalette(profile.PalettePath);
                     ApplyUnknownPaletteColor(palette);
                     lookup = BuildTileLookup(profile);
@@ -1801,18 +1815,49 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             SetFieldState(VerdataStaticsFileIdBox, FieldState.Neutral, isOptional: true);
         }
 
-        var sourceFromOk = TryParseInt(SourceFromXBox.Text, out _);
-        var sourceToOk = TryParseInt(SourceToXBox.Text, out _);
-        var sourceYFromOk = TryParseInt(SourceFromYBox.Text, out _);
-        var sourceYToOk = TryParseInt(SourceToYBox.Text, out _);
-        var destStartOk = TryParseInt(DestStartXBox.Text, out _) && TryParseInt(DestStartYBox.Text, out _);
+        var sourceFromText = SourceFromXBox.Text;
+        var sourceFromYText = SourceFromYBox.Text;
+        var sourceToText = SourceToXBox.Text;
+        var sourceToYText = SourceToYBox.Text;
+        var destStartXText = DestStartXBox.Text;
+        var destStartYText = DestStartYBox.Text;
 
-        SetFieldState(SourceFromXBox, sourceFromOk ? FieldState.Valid : FieldState.Error);
-        SetFieldState(SourceFromYBox, sourceYFromOk ? FieldState.Valid : FieldState.Error);
-        SetFieldState(SourceToXBox, sourceToOk ? FieldState.Valid : FieldState.Error);
-        SetFieldState(SourceToYBox, sourceYToOk ? FieldState.Valid : FieldState.Error);
-        SetFieldState(DestStartXBox, destStartOk ? FieldState.Valid : FieldState.Error);
-        SetFieldState(DestStartYBox, destStartOk ? FieldState.Valid : FieldState.Error);
+        var sourceCoordsEmpty = string.IsNullOrWhiteSpace(sourceFromText) &&
+                                string.IsNullOrWhiteSpace(sourceFromYText) &&
+                                string.IsNullOrWhiteSpace(sourceToText) &&
+                                string.IsNullOrWhiteSpace(sourceToYText);
+        if (sourceCoordsEmpty)
+        {
+            SetFieldState(SourceFromXBox, FieldState.Neutral, isOptional: true);
+            SetFieldState(SourceFromYBox, FieldState.Neutral, isOptional: true);
+            SetFieldState(SourceToXBox, FieldState.Neutral, isOptional: true);
+            SetFieldState(SourceToYBox, FieldState.Neutral, isOptional: true);
+        }
+        else
+        {
+            var sourceFromOk = TryParseInt(sourceFromText, out _);
+            var sourceToOk = TryParseInt(sourceToText, out _);
+            var sourceYFromOk = TryParseInt(sourceFromYText, out _);
+            var sourceYToOk = TryParseInt(sourceToYText, out _);
+            SetFieldState(SourceFromXBox, sourceFromOk ? FieldState.Valid : FieldState.Error);
+            SetFieldState(SourceFromYBox, sourceYFromOk ? FieldState.Valid : FieldState.Error);
+            SetFieldState(SourceToXBox, sourceToOk ? FieldState.Valid : FieldState.Error);
+            SetFieldState(SourceToYBox, sourceYToOk ? FieldState.Valid : FieldState.Error);
+        }
+
+        var destCoordsEmpty = string.IsNullOrWhiteSpace(destStartXText) &&
+                              string.IsNullOrWhiteSpace(destStartYText);
+        if (destCoordsEmpty)
+        {
+            SetFieldState(DestStartXBox, FieldState.Neutral, isOptional: true);
+            SetFieldState(DestStartYBox, FieldState.Neutral, isOptional: true);
+        }
+        else
+        {
+            var destStartOk = TryParseInt(destStartXText, out _) && TryParseInt(destStartYText, out _);
+            SetFieldState(DestStartXBox, destStartOk ? FieldState.Valid : FieldState.Error);
+            SetFieldState(DestStartYBox, destStartOk ? FieldState.Valid : FieldState.Error);
+        }
 
         if (copyStatics && GetStaticsZMode() == StaticsZMode.Fixed)
         {
@@ -3006,8 +3051,23 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     {
         rect = default;
 
-        if (!TryParseInt(SourceFromXBox.Text, out var fromX) ||
-            !TryParseInt(SourceFromYBox.Text, out var fromY))
+        var fromXText = SourceFromXBox.Text;
+        var fromYText = SourceFromYBox.Text;
+        var toXText = SourceToXBox.Text;
+        var toYText = SourceToYBox.Text;
+        var fromXEmpty = string.IsNullOrWhiteSpace(fromXText);
+        var fromYEmpty = string.IsNullOrWhiteSpace(fromYText);
+        var toXEmpty = string.IsNullOrWhiteSpace(toXText);
+        var toYEmpty = string.IsNullOrWhiteSpace(toYText);
+
+        if (fromXEmpty && fromYEmpty && toXEmpty && toYEmpty)
+        {
+            rect = new RectInt(0, 0, width, height);
+            return true;
+        }
+
+        if (!TryParseInt(fromXText, out var fromX) ||
+            !TryParseInt(fromYText, out var fromY))
         {
             return false;
         }
@@ -3017,8 +3077,8 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             return false;
         }
 
-        var toXHas = TryParseInt(SourceToXBox.Text, out var toX);
-        var toYHas = TryParseInt(SourceToYBox.Text, out var toY);
+        var toXHas = TryParseInt(toXText, out var toX);
+        var toYHas = TryParseInt(toYText, out var toY);
 
         if ((toXHas && toX != 0) || (toYHas && toY != 0))
         {
@@ -3027,6 +3087,14 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
 
         rect = new RectInt(0, 0, width, height);
         return true;
+    }
+
+    private bool AreSourceRegionFieldsEmpty()
+    {
+        return string.IsNullOrWhiteSpace(SourceFromXBox.Text) &&
+               string.IsNullOrWhiteSpace(SourceFromYBox.Text) &&
+               string.IsNullOrWhiteSpace(SourceToXBox.Text) &&
+               string.IsNullOrWhiteSpace(SourceToYBox.Text);
     }
 
     private static bool TryParsePreviewCrop(string path, out int x, out int y, out int width, out int height)
@@ -3107,6 +3175,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
 
     private void LoadPreviewMapTransOptions()
     {
+        var selectedPath = GetSelectedPreviewMapTransPath();
         _previewMapTransOptions.Clear();
         var roots = FindMapTransRoots().ToList();
         foreach (var file in MapTransCatalog.FindMapTransFiles(roots))
@@ -3114,11 +3183,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             AddPreviewMapTransOption(file, select: false);
         }
 
-        PreviewMapTransComboBox.ItemsSource = _previewMapTransOptions;
-        if (_previewMapTransOptions.Count > 0)
-        {
-            PreviewMapTransComboBox.SelectedIndex = 0;
-        }
+        RefreshPreviewMapTransOptions(selectedPath);
     }
 
     private void AddPreviewMapTransOption(string path, bool select = true)
@@ -3138,16 +3203,28 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             ? Path.GetFileName(path)
             : $"{parentName}/{Path.GetFileName(path)}";
         _previewMapTransOptions.Add(new MapTransOption(name, path));
-
-        PreviewMapTransComboBox.ItemsSource = _previewMapTransOptions;
-        if (select)
-        {
-            PreviewMapTransComboBox.SelectedIndex = _previewMapTransOptions.Count - 1;
-        }
+        RefreshPreviewMapTransOptions(select ? path : null);
     }
 
     private string? GetSelectedPreviewMapTransPath()
         => PreviewMapTransComboBox.SelectedItem is MapTransOption option ? option.Path : null;
+
+    private void RefreshPreviewMapTransOptions(string? selectPath)
+    {
+        _previewMapTransOptions.Sort(CompareMapTransOption);
+        PreviewMapTransComboBox.ItemsSource = null;
+        PreviewMapTransComboBox.ItemsSource = _previewMapTransOptions;
+
+        if (!string.IsNullOrWhiteSpace(selectPath))
+        {
+            PreviewMapTransComboBox.SelectedItem = _previewMapTransOptions.Find(option =>
+                option.Path.Equals(selectPath, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (PreviewMapTransComboBox.SelectedItem is null && _previewMapTransOptions.Count > 0)
+        {
+            PreviewMapTransComboBox.SelectedIndex = 0;
+        }
+    }
 
     private static IEnumerable<string> FindMapTransRoots()
     {
@@ -4207,6 +4284,60 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         public string Path { get; }
 
         public override string ToString() => Name;
+    }
+
+    private static int CompareMapTransOption(MapTransOption left, MapTransOption right)
+        => CompareNatural(left.Name, right.Name);
+
+    private static int CompareNatural(string left, string right)
+    {
+        var leftIndex = 0;
+        var rightIndex = 0;
+
+        while (leftIndex < left.Length && rightIndex < right.Length)
+        {
+            var leftChar = left[leftIndex];
+            var rightChar = right[rightIndex];
+
+            if (char.IsDigit(leftChar) && char.IsDigit(rightChar))
+            {
+                var leftNumber = ReadNumber(left, ref leftIndex);
+                var rightNumber = ReadNumber(right, ref rightIndex);
+                var numberCompare = leftNumber.CompareTo(rightNumber);
+                if (numberCompare != 0)
+                {
+                    return numberCompare;
+                }
+                continue;
+            }
+
+            var charCompare = char.ToUpperInvariant(leftChar).CompareTo(char.ToUpperInvariant(rightChar));
+            if (charCompare != 0)
+            {
+                return charCompare;
+            }
+
+            leftIndex++;
+            rightIndex++;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static int ReadNumber(string value, ref int index)
+    {
+        var start = index;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        if (int.TryParse(value[start..index], out var number))
+        {
+            return number;
+        }
+
+        return 0;
     }
 
     private static void CountStaticsTileIdsInRect(

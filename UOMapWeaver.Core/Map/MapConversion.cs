@@ -1,5 +1,7 @@
+using UOMapWeaver.Core;
 using UOMapWeaver.Core.Bmp;
 using UOMapWeaver.Core.MapTrans;
+using UOMapWeaver.Core.Statics;
 using UOMapWeaver.Core.TileColors;
 using UOMapWeaver.Core.TileReplace;
 
@@ -32,6 +34,10 @@ public static class MapConversion
         var altitudePalette = Bmp8Codec.CreateGrayscalePalette();
 
         var lookup = tileColorMap?.Mode == TileColorMode.Indexed8 ? null : BuildTileLookup(profile);
+        var sortedTileIds = lookup is null
+            ? Array.Empty<ushort>()
+            : lookup.Keys.OrderBy(key => key).ToArray();
+        var nearestCache = lookup is null ? null : new Dictionary<ushort, ushort>();
 
         var lastProgress = -1;
         var loggedErrors = 0;
@@ -46,7 +52,7 @@ public static class MapConversion
                 var tileId = ApplyTerrainReplacement(tile.TileId, options.TileReplacementMap);
                 var resolved = tileColorMap?.Mode == TileColorMode.Indexed8
                     ? tileColorMap.TryGetColorIndex(tileId, out var colorIndex)
-                    : TryResolveTerrainColor(lookup!, tileId, tile.Z, out colorIndex);
+                    : TryResolveTerrainColor(lookup!, tileId, tile.Z, out colorIndex, sortedTileIds, nearestCache!, report);
 
                 if (resolved)
                 {
@@ -129,6 +135,10 @@ public static class MapConversion
 
         ApplyUnknownColor(terrainPalette);
         var lookup = tileColorMap?.Mode == TileColorMode.Indexed8 ? null : BuildTileLookup(profile);
+        var sortedTileIds = lookup is null
+            ? Array.Empty<ushort>()
+            : lookup.Keys.OrderBy(key => key).ToArray();
+        var nearestCache = lookup is null ? null : new Dictionary<ushort, ushort>();
 
         var loggedErrors = 0;
         var suppressedErrors = 0;
@@ -154,7 +164,7 @@ public static class MapConversion
                 var tileId = ApplyTerrainReplacement(tile.TileId, options.TileReplacementMap);
                 var resolved = tileColorMap?.Mode == TileColorMode.Indexed8
                     ? tileColorMap.TryGetColorIndex(tileId, out var colorIndex)
-                    : TryResolveTerrainColor(lookup!, tileId, tile.Z, out colorIndex);
+                    : TryResolveTerrainColor(lookup!, tileId, tile.Z, out colorIndex, sortedTileIds, nearestCache!, report);
 
                 if (resolved)
                 {
@@ -403,6 +413,294 @@ public static class MapConversion
         return report;
     }
 
+    public static MapConversionReport ConvertTerrainXmlBmpToMulFromFiles(
+        string terrainPath,
+        string altitudePath,
+        string mapMulPath,
+        string terrainXmlPath,
+        string transitionsRoot,
+        IProgress<int>? progress = null,
+        Action<MapConversionLogEntry>? log = null,
+        MapConversionOptions? options = null
+    )
+    {
+        options ??= new MapConversionOptions();
+        using var terrainReader = new Bmp24StreamReader(terrainPath);
+        using var altitudeReader = new Bmp8StreamReader(altitudePath);
+
+        if (terrainReader.Width != altitudeReader.Width || terrainReader.Height != altitudeReader.Height)
+        {
+            throw new InvalidOperationException("Terrain and altitude images must match in size.");
+        }
+
+        var width = terrainReader.Width;
+        var height = terrainReader.Height;
+        var report = new MapConversionReport(width * height);
+        var catalog = TerrainTransitionCatalog.Load(terrainXmlPath, transitionsRoot, log);
+        var altitudeCatalog = AltitudeCatalog.Load(Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml"), log);
+
+        var loggedErrors = 0;
+        var suppressedErrors = 0;
+        var suppressionLogged = false;
+        var lastProgress = -1;
+        var rowsProcessed = 0;
+
+        var terrainRow = new byte[width * 3];
+        var altitudeRow = new byte[width];
+        var prevTerrainIds = new byte[width];
+        var currTerrainIds = new byte[width];
+        var nextTerrainIds = new byte[width];
+        var altitudeByIndex = BuildAltitudeByIndex(altitudeReader.Palette, altitudeCatalog, log, options, report,
+            ref loggedErrors, ref suppressedErrors, ref suppressionLogged);
+
+        var hasAnyTerrain = catalog.TerrainById.Count > 0;
+        if (!hasAnyTerrain)
+        {
+            log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Warning,
+                "No Terrain definitions loaded. Output will be filled with tileId 0."));
+        }
+
+        if (height > 0)
+        {
+            ReadTerrainRowIds(terrainReader, catalog, 0, currTerrainIds, terrainRow, report, log,
+                ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+
+            if (height > 1)
+            {
+                ReadTerrainRowIds(terrainReader, catalog, 1, nextTerrainIds, terrainRow, report, log,
+                    ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+            }
+            else
+            {
+                Array.Copy(currTerrainIds, nextTerrainIds, currTerrainIds.Length);
+            }
+        }
+        Array.Copy(currTerrainIds, prevTerrainIds, currTerrainIds.Length);
+
+        MapMulCodec.WriteLandTilesFromRows(mapMulPath, width, height, (y, rowSpan) =>
+        {
+            options.CancellationToken?.ThrowIfCancellationRequested();
+            altitudeReader.ReadRow(y, altitudeRow);
+
+            if (y > 0)
+            {
+                Array.Copy(currTerrainIds, prevTerrainIds, currTerrainIds.Length);
+                Array.Copy(nextTerrainIds, currTerrainIds, nextTerrainIds.Length);
+
+                if (y + 1 < height)
+                {
+                    ReadTerrainRowIds(terrainReader, catalog, y + 1, nextTerrainIds, terrainRow, report, log,
+                        ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+                }
+                else
+                {
+                    Array.Copy(currTerrainIds, nextTerrainIds, currTerrainIds.Length);
+                }
+            }
+
+            for (var x = 0; x < width; x++)
+            {
+                var z = altitudeByIndex[altitudeRow[x]];
+                var selection = ResolveTerrainTransitionSelection(catalog, prevTerrainIds, currTerrainIds, nextTerrainIds, x, y);
+                var adjustedZ = (sbyte)Math.Clamp(z + selection.MapTile.AltitudeMod, sbyte.MinValue, sbyte.MaxValue);
+                var tileId = ApplyTerrainReplacement(selection.MapTile.TileId, options.TileReplacementMap);
+
+                if (tileId == 0 && hasAnyTerrain)
+                {
+                    report.MissingTerrainTiles++;
+                }
+
+                rowSpan[x] = new LandTile(tileId, adjustedZ);
+            }
+
+            rowsProcessed++;
+            ReportProgress(progress, rowsProcessed, height, ref lastProgress);
+        });
+
+        if (suppressedErrors > 0)
+        {
+            log?.Invoke(new MapConversionLogEntry(
+                MapConversionLogLevel.Warning,
+                $"Suppressed {suppressedErrors:N0} additional missing terrain color errors."
+            ));
+        }
+
+        return report;
+    }
+
+    public static MapConversionReport ConvertTerrainXmlBmpToMulFromFilesWithStatics(
+        string terrainPath,
+        string altitudePath,
+        string mapMulPath,
+        string staidxPath,
+        string staticsPath,
+        string terrainXmlPath,
+        string transitionsRoot,
+        StaticsLayout layout,
+        IProgress<int>? progress = null,
+        Action<MapConversionLogEntry>? log = null,
+        MapConversionOptions? options = null)
+    {
+        options ??= new MapConversionOptions();
+        if (!BmpCodec.TryReadInfo(terrainPath, out var width, out var height, out _))
+        {
+            throw new InvalidOperationException($"Terrain.bmp not readable: {terrainPath}");
+        }
+
+        var report = ConvertTerrainXmlBmpToMulFromFiles(
+            terrainPath,
+            altitudePath,
+            mapMulPath,
+            terrainXmlPath,
+            transitionsRoot,
+            progress,
+            log,
+            options);
+
+        var blocks = GenerateTransitionStaticsFromTerrainXml(
+            terrainPath,
+            altitudePath,
+            terrainXmlPath,
+            transitionsRoot,
+            layout,
+            out var placedStatics,
+            progress,
+            log,
+            options);
+
+        StaticMulCodec.WriteStatics(staidxPath, staticsPath, width, height, blocks);
+        log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Info,
+            $"Transition statics placed: {placedStatics:N0}."));
+
+        return report;
+    }
+
+    public static List<StaticMulEntry>[] GenerateTransitionStaticsFromTerrainXml(
+        string terrainPath,
+        string altitudePath,
+        string terrainXmlPath,
+        string transitionsRoot,
+        StaticsLayout layout,
+        out int placedStatics,
+        IProgress<int>? progress = null,
+        Action<MapConversionLogEntry>? log = null,
+        MapConversionOptions? options = null)
+    {
+        options ??= new MapConversionOptions();
+        placedStatics = 0;
+
+        using var terrainReader = new Bmp24StreamReader(terrainPath);
+        using var altitudeReader = new Bmp8StreamReader(altitudePath);
+
+        if (terrainReader.Width != altitudeReader.Width || terrainReader.Height != altitudeReader.Height)
+        {
+            throw new InvalidOperationException("Terrain and altitude images must match in size.");
+        }
+
+        var width = terrainReader.Width;
+        var height = terrainReader.Height;
+        var catalog = TerrainTransitionCatalog.Load(terrainXmlPath, transitionsRoot, log);
+        var altitudeCatalog = AltitudeCatalog.Load(Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml"), log);
+
+        var loggedErrors = 0;
+        var suppressedErrors = 0;
+        var suppressionLogged = false;
+        var lastProgress = -1;
+        var rowsProcessed = 0;
+
+        var terrainRow = new byte[width * 3];
+        var altitudeRow = new byte[width];
+        var prevTerrainIds = new byte[width];
+        var currTerrainIds = new byte[width];
+        var nextTerrainIds = new byte[width];
+        var report = new MapConversionReport(width * height);
+        var altitudeByIndex = BuildAltitudeByIndex(altitudeReader.Palette, altitudeCatalog, log, options, report,
+            ref loggedErrors, ref suppressedErrors, ref suppressionLogged);
+
+        if (height > 0)
+        {
+            ReadTerrainRowIds(terrainReader, catalog, 0, currTerrainIds, terrainRow, report, log,
+                ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+
+            if (height > 1)
+            {
+                ReadTerrainRowIds(terrainReader, catalog, 1, nextTerrainIds, terrainRow, report, log,
+                    ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+            }
+            else
+            {
+                Array.Copy(currTerrainIds, nextTerrainIds, currTerrainIds.Length);
+            }
+        }
+        Array.Copy(currTerrainIds, prevTerrainIds, currTerrainIds.Length);
+
+        var blockWidth = width / MapMul.BlockSize;
+        var blockHeight = height / MapMul.BlockSize;
+        var blocks = new List<StaticMulEntry>[blockWidth * blockHeight];
+
+        for (var y = 0; y < height; y++)
+        {
+            options.CancellationToken?.ThrowIfCancellationRequested();
+            altitudeReader.ReadRow(y, altitudeRow);
+
+            if (y > 0)
+            {
+                Array.Copy(currTerrainIds, prevTerrainIds, currTerrainIds.Length);
+                Array.Copy(nextTerrainIds, currTerrainIds, nextTerrainIds.Length);
+
+                if (y + 1 < height)
+                {
+                    ReadTerrainRowIds(terrainReader, catalog, y + 1, nextTerrainIds, terrainRow, report, log,
+                        ref loggedErrors, ref suppressedErrors, ref suppressionLogged, options);
+                }
+                else
+                {
+                    Array.Copy(currTerrainIds, nextTerrainIds, currTerrainIds.Length);
+                }
+            }
+
+            for (var x = 0; x < width; x++)
+            {
+                var selection = ResolveTerrainTransitionSelection(catalog, prevTerrainIds, currTerrainIds, nextTerrainIds, x, y);
+                if (selection.StaticTile is null)
+                {
+                    continue;
+                }
+
+                var tileId = ApplyStaticReplacement(selection.StaticTile.TileId, options.TileReplacementMap);
+                if (tileId == 0)
+                {
+                    continue;
+                }
+
+                var z = altitudeByIndex[altitudeRow[x]];
+                var adjustedZ = (sbyte)Math.Clamp(z + selection.StaticTile.AltitudeMod, sbyte.MinValue, sbyte.MaxValue);
+
+                var blockX = x / MapMul.BlockSize;
+                var blockY = y / MapMul.BlockSize;
+                var localX = (byte)(x - (blockX * MapMul.BlockSize));
+                var localY = (byte)(y - (blockY * MapMul.BlockSize));
+                var blockIndex = StaticsLayoutHelper.GetBlockIndex(blockX, blockY, blockWidth, blockHeight, layout);
+                var list = blocks[blockIndex] ??= new List<StaticMulEntry>();
+                list.Add(new StaticMulEntry(tileId, localX, localY, adjustedZ, 0));
+                placedStatics++;
+            }
+
+            rowsProcessed++;
+            ReportProgress(progress, rowsProcessed, height, ref lastProgress);
+        }
+
+        if (suppressedErrors > 0)
+        {
+            log?.Invoke(new MapConversionLogEntry(
+                MapConversionLogLevel.Warning,
+                $"Suppressed {suppressedErrors:N0} additional missing terrain color errors."
+            ));
+        }
+
+        return blocks;
+    }
+
     public static (Bmp24Image terrain, Bmp8Image altitude, MapConversionReport report) ConvertMulToBmpRgb24(
         string mapMulPath,
         int width,
@@ -492,6 +790,21 @@ public static class MapConversion
         return (terrain, altitude, report);
     }
 
+    public static (Bmp24Image terrain, Bmp8Image altitude, MapConversionReport report) ConvertMulToTerrainXmlBmp(
+        string mapMulPath,
+        int width,
+        int height,
+        string terrainXmlPath,
+        string transitionsRoot,
+        IProgress<int>? progress = null,
+        Action<MapConversionLogEntry>? log = null,
+        MapConversionOptions? options = null
+    )
+    {
+        var map = BuildTerrainXmlTileColorMap(terrainXmlPath, transitionsRoot, log);
+        return ConvertMulToBmpRgb24(mapMulPath, width, height, map, progress, log, options);
+    }
+
     public static MapConversionReport ConvertMulToBmpRgb24ToFile(
         string mapMulPath,
         int width,
@@ -571,6 +884,240 @@ public static class MapConversion
                 terrainRow[index + 1] = color.G;
                 terrainRow[index + 2] = color.B;
                 altitudeRow[x] = EncodeAltitude(tile.Z);
+            }
+
+            terrainWriter.WriteRow(terrainRow);
+            altitudeWriter.WriteRow(altitudeRow);
+
+            ReportProgress(progress, height - y, height, ref lastProgress);
+        }
+
+        if (suppressedErrors > 0)
+        {
+            log?.Invoke(new MapConversionLogEntry(
+                MapConversionLogLevel.Warning,
+                $"Suppressed {suppressedErrors:N0} additional missing color errors."
+            ));
+        }
+
+        return report;
+    }
+
+    public static MapConversionReport ConvertMulToTerrainXmlBmpToFile(
+        string mapMulPath,
+        int width,
+        int height,
+        string terrainXmlPath,
+        string transitionsRoot,
+        string terrainPath,
+        string altitudePath,
+        IProgress<int>? progress = null,
+        Action<MapConversionLogEntry>? log = null,
+        MapConversionOptions? options = null
+    )
+    {
+        options ??= new MapConversionOptions();
+        if (options.UseAltitudeXmlColors)
+        {
+            return ConvertMulToTerrainXmlBmpToFileWithAltitudeColors(
+                mapMulPath,
+                width,
+                height,
+                terrainXmlPath,
+                transitionsRoot,
+                terrainPath,
+                altitudePath,
+                progress,
+                log,
+                options
+            );
+        }
+
+        var map = BuildTerrainXmlTileColorMap(terrainXmlPath, transitionsRoot, log);
+        return ConvertMulToBmpRgb24ToFile(
+            mapMulPath,
+            width,
+            height,
+            map,
+            terrainPath,
+            altitudePath,
+            progress,
+            log,
+            options
+        );
+    }
+
+    public static TileColorMap BuildTerrainXmlTileColorMap(
+        string terrainXmlPath,
+        string transitionsRoot,
+        Action<MapConversionLogEntry>? log = null
+    )
+    {
+        var catalog = TerrainTransitionCatalog.Load(terrainXmlPath, transitionsRoot, log);
+        var tileToColor = new Dictionary<ushort, RgbColor>();
+        var colorToTile = new Dictionary<int, ushort>();
+        var terrainColorById = new Dictionary<int, RgbColor>();
+        var unknown = new RgbColor(255, 0, 255);
+
+        foreach (var terrain in catalog.TerrainById.Values)
+        {
+            var color = new RgbColor(
+                (byte)((terrain.ColorKey >> 16) & 0xFF),
+                (byte)((terrain.ColorKey >> 8) & 0xFF),
+                (byte)(terrain.ColorKey & 0xFF)
+            );
+            terrainColorById[terrain.Id] = color;
+
+            AddTerrainXmlTileColor(tileToColor, colorToTile, terrain.TileId, color);
+            if (terrain.Random)
+            {
+                for (var i = 1; i <= 3; i++)
+                {
+                    AddTerrainXmlTileColor(tileToColor, colorToTile, (ushort)(terrain.TileId + i), color);
+                }
+            }
+        }
+
+        var transitionTiles = 0;
+        var transitionConflicts = 0;
+        foreach (var entry in catalog.Transitions)
+        {
+            if (!TryParseTerrainHashCenter(entry.Key, out var terrainId))
+            {
+                continue;
+            }
+
+            if (!terrainColorById.TryGetValue(terrainId, out var color))
+            {
+                continue;
+            }
+
+            foreach (var tile in entry.Value.MapTiles)
+            {
+                if (tileToColor.TryGetValue(tile.TileId, out var existing))
+                {
+                    if (existing.Key != color.Key)
+                    {
+                        transitionConflicts++;
+                    }
+                    continue;
+                }
+
+                AddTerrainXmlTileColor(tileToColor, colorToTile, tile.TileId, color);
+                transitionTiles++;
+            }
+        }
+
+        log?.Invoke(new MapConversionLogEntry(
+            MapConversionLogLevel.Info,
+            $"Terrain XML tile colors mapped: {tileToColor.Count:N0} tiles ({transitionTiles:N0} transitions, {transitionConflicts:N0} conflicts)."
+        ));
+
+        return new TileColorMap(
+            TileColorMode.Rgb24,
+            new Dictionary<ushort, byte>(),
+            tileToColor,
+            new Dictionary<byte, ushort>(),
+            colorToTile,
+            null,
+            unknown
+        );
+    }
+
+    private static MapConversionReport ConvertMulToTerrainXmlBmpToFileWithAltitudeColors(
+        string mapMulPath,
+        int width,
+        int height,
+        string terrainXmlPath,
+        string transitionsRoot,
+        string terrainPath,
+        string altitudePath,
+        IProgress<int>? progress,
+        Action<MapConversionLogEntry>? log,
+        MapConversionOptions options
+    )
+    {
+        var map = BuildTerrainXmlTileColorMap(terrainXmlPath, transitionsRoot, log);
+        var report = new MapConversionReport(width * height);
+        var altitudeCatalog = AltitudeCatalog.Load(Path.Combine(UOMapWeaverDataPaths.DataRoot, "Altitude.xml"), log);
+        var altitudeColorMap = BuildAltitudeColorMap(altitudeCatalog);
+        var unknown = map.UnknownColor;
+
+        var loggedErrors = 0;
+        var suppressedErrors = 0;
+        var suppressionLogged = false;
+        var lastProgress = -1;
+
+        using var reader = new MapMulRowReader(mapMulPath, width, height);
+        using var terrainWriter = new Bmp24StreamWriter(terrainPath, width, height);
+        using var altitudeWriter = new Bmp24StreamWriter(altitudePath, width, height);
+
+        var tileRow = new LandTile[width];
+        var terrainRow = new byte[width * 3];
+        var altitudeRow = new byte[width * 3];
+
+        for (var y = height - 1; y >= 0; y--)
+        {
+            options.CancellationToken?.ThrowIfCancellationRequested();
+            reader.ReadRow(y, tileRow);
+
+            for (var x = 0; x < width; x++)
+            {
+                var tile = tileRow[x];
+                var tileId = ApplyTerrainReplacement(tile.TileId, options.TileReplacementMap);
+                if (!map.TryGetColor(tileId, out var color))
+                {
+                    report.MissingTerrainColors++;
+                    report.AddMissingColor(tileId);
+                    var message = $"Missing terrain color at ({x},{y}) tile=0x{tileId:X4} z={tile.Z}; using {unknown.ToHex()}.";
+                    if (options.StopOnError)
+                    {
+                        log?.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Error, message));
+                        throw new MapConversionAbortException(message);
+                    }
+
+                    if (log != null && options.MaxErrorLogs > 0)
+                    {
+                        if (loggedErrors < options.MaxErrorLogs)
+                        {
+                            log.Invoke(new MapConversionLogEntry(MapConversionLogLevel.Error, message));
+                            loggedErrors++;
+                        }
+                        else
+                        {
+                            suppressedErrors++;
+                            if (!suppressionLogged)
+                            {
+                                suppressionLogged = true;
+                                log.Invoke(new MapConversionLogEntry(
+                                    MapConversionLogLevel.Warning,
+                                    $"Too many missing color errors. Suppressing further error logs (limit {options.MaxErrorLogs})."
+                                ));
+                            }
+                        }
+                    }
+
+                    color = unknown;
+                }
+
+                var index = x * 3;
+                terrainRow[index] = color.R;
+                terrainRow[index + 1] = color.G;
+                terrainRow[index + 2] = color.B;
+
+                if (altitudeColorMap.TryGetValue(tile.Z, out var altitudeColor))
+                {
+                    altitudeRow[index] = altitudeColor.R;
+                    altitudeRow[index + 1] = altitudeColor.G;
+                    altitudeRow[index + 2] = altitudeColor.B;
+                }
+                else
+                {
+                    var grayscale = EncodeAltitude(tile.Z);
+                    altitudeRow[index] = grayscale;
+                    altitudeRow[index + 1] = grayscale;
+                    altitudeRow[index + 2] = grayscale;
+                }
             }
 
             terrainWriter.WriteRow(terrainRow);
@@ -1080,13 +1627,22 @@ public static class MapConversion
         Dictionary<ushort, List<MapTransEntry>> lookup,
         ushort tileId,
         sbyte z,
-        out byte colorIndex
+        out byte colorIndex,
+        ushort[] sortedTileIds,
+        Dictionary<ushort, ushort> nearestCache,
+        MapConversionReport report
     )
     {
         if (!lookup.TryGetValue(tileId, out var entries) || entries.Count == 0)
         {
-            colorIndex = 0;
-            return false;
+            if (!TryResolveNearestTileId(tileId, sortedTileIds, nearestCache, out var nearestId) ||
+                !lookup.TryGetValue(nearestId, out entries) || entries.Count == 0)
+            {
+                colorIndex = 0;
+                return false;
+            }
+
+            report.FallbackTerrainColors++;
         }
 
         var best = entries[0];
@@ -1104,6 +1660,43 @@ public static class MapConversion
         }
 
         colorIndex = best.ColorIndex;
+        return true;
+    }
+
+    private static bool TryResolveNearestTileId(
+        ushort tileId,
+        ushort[] sortedTileIds,
+        Dictionary<ushort, ushort> nearestCache,
+        out ushort nearestId
+    )
+    {
+        if (sortedTileIds.Length == 0)
+        {
+            nearestId = 0;
+            return false;
+        }
+
+        if (nearestCache.TryGetValue(tileId, out nearestId))
+        {
+            return true;
+        }
+
+        var index = Array.BinarySearch(sortedTileIds, tileId);
+        if (index >= 0)
+        {
+            nearestId = sortedTileIds[index];
+            nearestCache[tileId] = nearestId;
+            return true;
+        }
+
+        var insertIndex = ~index;
+        var leftIndex = Math.Clamp(insertIndex - 1, 0, sortedTileIds.Length - 1);
+        var rightIndex = Math.Clamp(insertIndex, 0, sortedTileIds.Length - 1);
+
+        var left = sortedTileIds[leftIndex];
+        var right = sortedTileIds[rightIndex];
+        nearestId = (ushort)(Math.Abs(left - tileId) <= Math.Abs(right - tileId) ? left : right);
+        nearestCache[tileId] = nearestId;
         return true;
     }
 
@@ -1160,6 +1753,248 @@ public static class MapConversion
         return lookup;
     }
 
+    private static void ReadTerrainRowIds(
+        Bmp24StreamReader terrainReader,
+        TerrainTransitionCatalog catalog,
+        int y,
+        byte[] terrainIds,
+        byte[] terrainRow,
+        MapConversionReport report,
+        Action<MapConversionLogEntry>? log,
+        ref int loggedErrors,
+        ref int suppressedErrors,
+        ref bool suppressionLogged,
+        MapConversionOptions options)
+    {
+        terrainReader.ReadRow(y, terrainRow);
+        for (var x = 0; x < terrainIds.Length; x++)
+        {
+            var offset = x * 3;
+            var b = terrainRow[offset];
+            var g = terrainRow[offset + 1];
+            var r = terrainRow[offset + 2];
+            var colorKey = (r << 16) | (g << 8) | b;
+
+            if (!catalog.TerrainIdByColor.TryGetValue(colorKey, out var terrainId))
+            {
+                report.MissingTerrainColors++;
+                if (log != null && options.MaxErrorLogs > 0)
+                {
+                    if (loggedErrors < options.MaxErrorLogs)
+                    {
+                        log.Invoke(new MapConversionLogEntry(
+                            MapConversionLogLevel.Error,
+                            $"Missing terrain color at ({x},{y}) rgb=0x{colorKey:X6}; using 0."
+                        ));
+                        loggedErrors++;
+                    }
+                    else
+                    {
+                        suppressedErrors++;
+                        if (!suppressionLogged)
+                        {
+                            suppressionLogged = true;
+                            log.Invoke(new MapConversionLogEntry(
+                                MapConversionLogLevel.Warning,
+                                $"Too many missing color errors. Suppressing further error logs (limit {options.MaxErrorLogs})."
+                            ));
+                        }
+                    }
+                }
+
+                terrainId = 0;
+            }
+
+            terrainIds[x] = (byte)(terrainId & 0xFF);
+        }
+    }
+
+    private static TransitionSelection ResolveTerrainTransitionSelection(
+        TerrainTransitionCatalog catalog,
+        byte[] prevRow,
+        byte[] currRow,
+        byte[] nextRow,
+        int x,
+        int y)
+    {
+        var width = currRow.Length;
+        var left = Math.Max(x - 1, 0);
+        var right = Math.Min(x + 1, width - 1);
+
+        var hash = BuildTerrainTransitionHash(
+            prevRow[left], prevRow[x], prevRow[right],
+            currRow[left], currRow[x], currRow[right],
+            nextRow[left], nextRow[x], nextRow[right]);
+
+        List<TransitionTile>? mapTiles = null;
+        List<TransitionStatic>? staticTiles = null;
+        if (catalog.Transitions.TryGetValue(hash, out var set))
+        {
+            mapTiles = set.MapTiles;
+            staticTiles = set.StaticTiles;
+        }
+
+        if (mapTiles is null || mapTiles.Count == 0)
+        {
+            if (catalog.BaseTiles.TryGetValue(currRow[x], out var baseTiles) && baseTiles.Count > 0)
+            {
+                mapTiles = baseTiles;
+            }
+        }
+
+        var seed = x + y;
+        TransitionTile mapTile;
+        if (mapTiles is { Count: > 0 })
+        {
+            mapTile = mapTiles[seed % mapTiles.Count];
+        }
+        else if (catalog.TerrainById.TryGetValue(currRow[x], out var terrain))
+        {
+            mapTile = new TransitionTile(terrain.TileId, 0);
+        }
+        else
+        {
+            mapTile = new TransitionTile(0, 0);
+        }
+
+        TransitionStatic? staticTile = null;
+        if (staticTiles is { Count: > 0 })
+        {
+            staticTile = staticTiles[seed % staticTiles.Count];
+        }
+
+        return new TransitionSelection(mapTile, staticTile);
+    }
+
+    private readonly record struct TransitionSelection(TransitionTile MapTile, TransitionStatic? StaticTile);
+
+    private static string BuildTerrainTransitionHash(
+        byte tl, byte t, byte tr,
+        byte ml, byte m, byte mr,
+        byte bl, byte b, byte br)
+    {
+        Span<char> chars = stackalloc char[18];
+        WriteHexByte(tl, chars, 0);
+        WriteHexByte(t, chars, 2);
+        WriteHexByte(tr, chars, 4);
+        WriteHexByte(ml, chars, 6);
+        WriteHexByte(m, chars, 8);
+        WriteHexByte(mr, chars, 10);
+        WriteHexByte(bl, chars, 12);
+        WriteHexByte(b, chars, 14);
+        WriteHexByte(br, chars, 16);
+        return new string(chars);
+    }
+
+    private static bool TryParseTerrainHashCenter(string hash, out int terrainId)
+    {
+        terrainId = 0;
+        if (hash.Length != 18)
+        {
+            return false;
+        }
+
+        var center = hash.Substring(8, 2);
+        return int.TryParse(center, System.Globalization.NumberStyles.HexNumber, null, out terrainId);
+    }
+
+    private static Dictionary<sbyte, RgbColor> BuildAltitudeColorMap(AltitudeCatalog catalog)
+    {
+        var map = new Dictionary<sbyte, RgbColor>();
+        foreach (var entry in catalog.AltitudeByColor)
+        {
+            var colorKey = entry.Key;
+            var altitude = entry.Value;
+            if (map.ContainsKey(altitude))
+            {
+                continue;
+            }
+
+            var color = new RgbColor(
+                (byte)((colorKey >> 16) & 0xFF),
+                (byte)((colorKey >> 8) & 0xFF),
+                (byte)(colorKey & 0xFF)
+            );
+            map[altitude] = color;
+        }
+
+        return map;
+    }
+
+    private static void AddTerrainXmlTileColor(
+        Dictionary<ushort, RgbColor> tileToColor,
+        Dictionary<int, ushort> colorToTile,
+        ushort tileId,
+        RgbColor color)
+    {
+        if (!tileToColor.ContainsKey(tileId))
+        {
+            tileToColor[tileId] = color;
+        }
+
+        if (!colorToTile.ContainsKey(color.Key))
+        {
+            colorToTile[color.Key] = tileId;
+        }
+    }
+
+    private static void WriteHexByte(byte value, Span<char> chars, int offset)
+    {
+        const string hex = "0123456789ABCDEF";
+        chars[offset] = hex[value >> 4];
+        chars[offset + 1] = hex[value & 0xF];
+    }
+
+    private static sbyte[] BuildAltitudeByIndex(
+        BmpPaletteEntry[] palette,
+        AltitudeCatalog catalog,
+        Action<MapConversionLogEntry>? log,
+        MapConversionOptions options,
+        MapConversionReport report,
+        ref int loggedErrors,
+        ref int suppressedErrors,
+        ref bool suppressionLogged)
+    {
+        var altitudeByIndex = new sbyte[256];
+        for (var i = 0; i < altitudeByIndex.Length; i++)
+        {
+            var entry = palette[i];
+            var colorKey = (entry.Red << 16) | (entry.Green << 8) | entry.Blue;
+            if (catalog.AltitudeByColor.TryGetValue(colorKey, out var altitude))
+            {
+                altitudeByIndex[i] = altitude;
+                continue;
+            }
+
+            altitudeByIndex[i] = DecodeAltitude((byte)i);
+            if (log != null && options.MaxErrorLogs > 0)
+            {
+                if (loggedErrors < options.MaxErrorLogs)
+                {
+                    log.Invoke(new MapConversionLogEntry(
+                        MapConversionLogLevel.Warning,
+                        $"Missing altitude color rgb=0x{colorKey:X6} at index {i}; using grayscale decode."
+                    ));
+                    loggedErrors++;
+                }
+                else
+                {
+                    suppressedErrors++;
+                    if (!suppressionLogged)
+                    {
+                        suppressionLogged = true;
+                        log.Invoke(new MapConversionLogEntry(
+                            MapConversionLogLevel.Warning,
+                            $"Too many missing altitude color errors. Suppressing further error logs (limit {options.MaxErrorLogs})."
+                        ));
+                    }
+                }
+            }
+        }
+
+        return altitudeByIndex;
+    }
+
     private static byte EncodeAltitude(sbyte z)
     {
         var value = z + 128;
@@ -1184,13 +2019,69 @@ public static class MapConversion
 
     private static BmpPaletteEntry[] LoadTerrainPalette(MapTransProfile profile)
     {
-        if (!string.IsNullOrWhiteSpace(profile.PalettePath) && File.Exists(profile.PalettePath))
+        var actPalette = TryLoadActPalette(Path.Combine(UOMapWeaverDataPaths.DataRoot, "ColorTables", "ACT", "Terrain.act"));
+        var palettePath = profile.PalettePath;
+
+        if (!string.IsNullOrWhiteSpace(palettePath) &&
+            !IsDefaultPalettePath(palettePath) &&
+            File.Exists(palettePath))
         {
-            var paletteImage = Bmp8Codec.Read(profile.PalettePath);
+            var paletteImage = Bmp8Codec.Read(palettePath);
+            return paletteImage.Palette;
+        }
+
+        if (actPalette != null)
+        {
+            return actPalette;
+        }
+
+        if (!string.IsNullOrWhiteSpace(palettePath) && File.Exists(palettePath))
+        {
+            var paletteImage = Bmp8Codec.Read(palettePath);
             return paletteImage.Palette;
         }
 
         return Bmp8Codec.CreateGrayscalePalette();
+    }
+
+    private static bool IsDefaultPalettePath(string path)
+    {
+        if (!Path.GetFileName(path).Equals("TerrainPalette.bmp", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        return !string.IsNullOrWhiteSpace(directory) &&
+               Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar)
+                   .Equals(Path.GetFullPath(UOMapWeaverDataPaths.MapTransRoot).TrimEnd(Path.DirectorySeparatorChar),
+                       StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static BmpPaletteEntry[]? TryLoadActPalette(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var bytes = File.ReadAllBytes(path);
+        if (bytes.Length < 768)
+        {
+            return null;
+        }
+
+        var palette = new BmpPaletteEntry[256];
+        for (var i = 0; i < 256; i++)
+        {
+            var offset = i * 3;
+            var red = bytes[offset];
+            var green = bytes[offset + 1];
+            var blue = bytes[offset + 2];
+            palette[i] = new BmpPaletteEntry(blue, green, red, 0);
+        }
+
+        return palette;
     }
 
     private static void ApplyUnknownColor(BmpPaletteEntry[] palette)
@@ -1206,6 +2097,16 @@ public static class MapConversion
     private static ushort ApplyTerrainReplacement(ushort tileId, TileReplacementMap? replacements)
     {
         if (replacements is not null && replacements.TryGetTerrainReplacement(tileId, out var replacement))
+        {
+            return replacement;
+        }
+
+        return tileId;
+    }
+
+    private static ushort ApplyStaticReplacement(ushort tileId, TileReplacementMap? replacements)
+    {
+        if (replacements is not null && replacements.TryGetStaticReplacement(tileId, out var replacement))
         {
             return replacement;
         }
@@ -1525,6 +2426,8 @@ public sealed class MapConversionOptions
 
     public TileReplacementMap? TileReplacementMap { get; set; }
 
+    public bool UseAltitudeXmlColors { get; set; }
+
     public CancellationToken? CancellationToken { get; set; }
 }
 
@@ -1548,6 +2451,8 @@ public sealed class MapConversionReport
 
     public int MissingTerrainTiles { get; set; }
 
+    public int FallbackTerrainColors { get; set; }
+
     public Dictionary<ushort, int> MissingColorsByTileId { get; } = new();
 
     public Dictionary<byte, int> MissingTilesByColorIndex { get; } = new();
@@ -1564,12 +2469,12 @@ public sealed class MapConversionReport
 
     public override string ToString()
     {
-        if (MissingTerrainColors == 0 && MissingTerrainTiles == 0)
+        if (MissingTerrainColors == 0 && MissingTerrainTiles == 0 && FallbackTerrainColors == 0)
         {
             return "No conversion gaps detected.";
         }
 
-        return $"Missing colors: {MissingTerrainColors:N0}, missing tiles: {MissingTerrainTiles:N0}.";
+        return $"Missing colors: {MissingTerrainColors:N0}, missing tiles: {MissingTerrainTiles:N0}, fallback colors: {FallbackTerrainColors:N0}.";
     }
 
     public string FormatTopMissingColors(int limit = 5)

@@ -139,6 +139,68 @@ public static class TileColorMapSerializer
         File.WriteAllText(path, json);
     }
 
+    public static async Task SaveAsync(string path, TileColorMap map, CancellationToken cancellationToken)
+    {
+        var dto = new TileColorMapDto
+        {
+            Version = CurrentVersion,
+            Mode = map.Mode.ToString(),
+            UnknownColor = map.UnknownColor.ToHex(),
+            Tiles = new Dictionary<string, string>()
+        };
+
+        if (map.Mode == TileColorMode.Indexed8)
+        {
+            foreach (var pair in map.TileToIndex.OrderBy(pair => pair.Key))
+            {
+                dto.Tiles[$"0x{pair.Key:X4}"] = pair.Value.ToString();
+            }
+
+            dto.Palette = SerializePalette(map.Palette);
+        }
+        else
+        {
+            foreach (var pair in map.TileToColor.OrderBy(pair => pair.Key))
+            {
+                dto.Tiles[$"0x{pair.Key:X4}"] = pair.Value.ToHex();
+            }
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = path + ".tmp";
+        try
+        {
+            await using var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await JsonSerializer.SerializeAsync(stream, dto, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+
+            File.Copy(tempPath, path, true);
+        }
+        catch
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+            throw;
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
     private static TileColorMode ParseMode(string? value)
     {
         if (string.Equals(value, "Rgb24", StringComparison.OrdinalIgnoreCase))

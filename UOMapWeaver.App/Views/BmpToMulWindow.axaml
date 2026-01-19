@@ -4,7 +4,7 @@
   <TabControl Margin="8">
     <TabItem Header="Inputs">
       <ScrollViewer>
-        <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+        <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Altitude.bmp" VerticalAlignment="Center" />
           <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <TextBox Name="AltitudeBmpBox" Width="360" TextChanged="OnTextChanged" />
@@ -15,6 +15,7 @@
           <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <TextBox Name="TerrainBmpBox" Width="360" TextChanged="OnTextChanged" />
             <Button Content="Browse" Click="OnBrowseTerrain" />
+            <Button Content="To 24-bit" Click="OnConvertTerrainTo24Bit" />
           </StackPanel>
 
           <TextBlock Grid.Row="2" Grid.Column="0" Text="Map Size" VerticalAlignment="Center" />
@@ -33,15 +34,22 @@
           <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <ComboBox Name="MapTransComboBox" Width="300" SelectionChanged="OnSelectionChanged" />
             <Button Name="MapTransBrowseButton" Content="Browse" Click="OnBrowseMapTrans" />
+            <Button Name="MapTransConvertButton" Content="Convert" Click="OnConvertMapTrans" />
           </StackPanel>
 
-          <TextBlock Grid.Row="6" Grid.Column="0" Text="Terrain Encoding" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="Palette BMP" VerticalAlignment="Center" />
           <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox Name="PaletteComboBox" Width="300" SelectionChanged="OnSelectionChanged" />
+            <Button Name="PaletteBrowseButton" Content="Browse" Click="OnBrowsePalette" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="7" Grid.Column="0" Text="Terrain Encoding" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <ComboBox Name="TerrainEncodingComboBox" Width="220" SelectionChanged="OnSelectionChanged" />
           </StackPanel>
 
-          <TextBlock Grid.Row="7" Grid.Column="0" Text="Tile Color JSON" VerticalAlignment="Center" />
-          <StackPanel Grid.Row="7" Grid.Column="1" Spacing="4">
+          <TextBlock Grid.Row="8" Grid.Column="0" Text="Tile Color JSON" VerticalAlignment="Center" />
+          <StackPanel Grid.Row="8" Grid.Column="1" Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBox Name="TileJsonPathBox" Width="300" TextChanged="OnTextChanged" />
               <Button Content="Browse" Click="OnBrowseTileJson" />
@@ -49,37 +57,36 @@
             <TextBlock Name="TileJsonModeText" />
           </StackPanel>
 
-          <CheckBox Grid.Row="8" Grid.ColumnSpan="2" Name="GenerateStaticsCheckBox" Content="Generate statics" IsChecked="True" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-          <CheckBox Grid.Row="9" Grid.ColumnSpan="2" Name="EmptyStaticsCheckBox" Content="Empty statics" IsChecked="True" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-          <TextBlock Grid.Row="10" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />
+          <CheckBox Grid.Row="9" Grid.ColumnSpan="2" Name="TransitionStaticsCheckBox"
+                    Content="Generate transition statics (Terrain XML)"
+                    IsChecked="False"
+                    Checked="OnCheckChanged"
+                    Unchecked="OnCheckChanged" />
+
+          <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+            <Button Name="GenerateButton" Content="Generate MUL" Click="OnGenerate" />
+            <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
+            <TextBlock Name="StatusTextPreview" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Grid.Row="11" Grid.ColumnSpan="2" Name="StatusText" Margin="0,8,0,0" />
+          <StackPanel Grid.Row="12" Grid.ColumnSpan="2" IsVisible="False">
+            <Button Name="LoadPreviewButton" Content="Load BMP Preview" Click="OnLoadPreview" />
+            <ScrollViewer Name="PreviewScroll"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          PointerWheelChanged="OnPreviewWheel"
+                          PointerPressed="OnPreviewPanPressed"
+                          PointerMoved="OnPreviewPanMoved"
+                          PointerReleased="OnPreviewPanReleased">
+              <Image Name="PreviewImage"
+                     Stretch="Fill"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top" />
+            </ScrollViewer>
+            <TextBlock Name="PreviewInfoText" Margin="0,8,0,0" />
+          </StackPanel>
         </Grid>
       </ScrollViewer>
-    </TabItem>
-    <TabItem Header="Preview">
-      <Grid Margin="8" RowDefinitions="Auto,*">
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-          <Button Name="GenerateButton" Content="Generate MUL" Click="OnGenerate" />
-          <Button Name="LoadPreviewButton" Content="Load BMP Preview" Click="OnLoadPreview" />
-          <CheckBox Name="StopOnErrorCheckBox" Content="Stop on error" />
-          <TextBlock Name="StatusTextPreview" />
-        </StackPanel>
-        <Grid Grid.Row="1" Margin="0,8,0,0" RowDefinitions="*,Auto">
-          <ScrollViewer Name="PreviewScroll"
-                        Grid.Row="0"
-                        HorizontalScrollBarVisibility="Auto"
-                        VerticalScrollBarVisibility="Auto"
-                        PointerWheelChanged="OnPreviewWheel"
-                        PointerPressed="OnPreviewPanPressed"
-                        PointerMoved="OnPreviewPanMoved"
-                        PointerReleased="OnPreviewPanReleased">
-            <Image Name="PreviewImage"
-                   Stretch="Fill"
-                   HorizontalAlignment="Left"
-                   VerticalAlignment="Top" />
-          </ScrollViewer>
-          <TextBlock Grid.Row="1" Name="PreviewInfoText" Margin="0,8,0,0" />
-        </Grid>
-      </Grid>
     </TabItem>
   </TabControl>
 </UserControl>

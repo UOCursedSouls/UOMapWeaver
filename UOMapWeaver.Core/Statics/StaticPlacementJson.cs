@@ -41,7 +41,7 @@ public static class StaticPlacementJson
         var records = LoadTerrainRecords(path);
         return records
             .Where(record => !string.IsNullOrWhiteSpace(record.Name))
-            .Select(record => new TerrainDefinition(record.Name!.Trim(), record.TileId))
+            .Select(record => new TerrainDefinition(record.Name!.Trim(), record.TileId, record.Random == true))
             .ToList();
     }
 

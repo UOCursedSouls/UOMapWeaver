@@ -6,4 +6,4 @@ public sealed record StaticPlacementGroup(int Weight, IReadOnlyList<StaticPlacem
 
 public readonly record struct StaticPlacementItem(ushort TileId, int X, int Y, sbyte Z, ushort Hue);
 
-public sealed record TerrainDefinition(string Name, ushort TileId);
+public sealed record TerrainDefinition(string Name, ushort TileId, bool Random);

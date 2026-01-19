@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="UOMapWeaver.App.Views.BlankBmpView">
-  <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*">
+  <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
     <TextBlock Grid.Row="0" Grid.Column="0" Text="Preset" VerticalAlignment="Center" />
     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <ComboBox Name="PresetComboBox" Width="320" SelectionChanged="OnPresetChanged" />
@@ -27,40 +27,55 @@
       <TextBox Name="PalettePathBox" Width="360" TextChanged="OnTextChanged" />
       <Button Content="Browse" Click="OnBrowsePalette" />
       <ComboBox Name="PaletteQuickComboBox" Width="220" SelectionChanged="OnPaletteQuickChanged" />
+      <Border Width="96" Height="16" BorderBrush="#555" BorderThickness="1">
+        <Image Name="PalettePreviewImage" Stretch="Fill" />
+      </Border>
     </StackPanel>
     <TextBlock Grid.Row="4" Grid.Column="1" Name="PaletteInfoText" />
 
-    <TextBlock Grid.Row="5" Grid.Column="0" Text="Fill Terrain" VerticalAlignment="Center" />
+    <TextBlock Grid.Row="5" Grid.Column="0" Text="Terrain Output" VerticalAlignment="Center" />
     <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <ComboBox Name="TerrainOutputComboBox" Width="220" SelectionChanged="OnOutputModeChanged" />
+    </StackPanel>
+
+    <TextBlock Grid.Row="6" Grid.Column="0" Text="Altitude Output" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <ComboBox Name="AltitudeOutputComboBox" Width="220" SelectionChanged="OnOutputModeChanged" />
+    </StackPanel>
+
+    <TextBlock Grid.Row="7" Grid.Column="0" Text="Fill Terrain" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <ComboBox Name="FillModeComboBox" Width="160" SelectionChanged="OnFillModeChanged" />
       <TextBox Name="FillIndexBox" Width="80" Watermark="Index" TextChanged="OnTextChanged" />
       <TextBox Name="FillRBox" Width="60" Watermark="R" TextChanged="OnTextChanged" />
       <TextBox Name="FillGBox" Width="60" Watermark="G" TextChanged="OnTextChanged" />
       <TextBox Name="FillBBox" Width="60" Watermark="B" TextChanged="OnTextChanged" />
       <ComboBox Name="FillTerrainComboBox" Width="220" SelectionChanged="OnTerrainChanged" />
+      <Border Name="FillColorSwatch" Width="20" Height="20" BorderBrush="#555" BorderThickness="1" />
       <TextBlock Name="FillResolvedText" VerticalAlignment="Center" />
     </StackPanel>
 
-    <TextBlock Grid.Row="6" Grid.Column="0" Text="Fill Altitude (Z)" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+    <TextBlock Grid.Row="8" Grid.Column="0" Text="Fill Altitude (Z)" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <TextBox Name="FillAltitudeBox" Width="80" TextChanged="OnTextChanged" HorizontalAlignment="Left" />
+      <Border Name="FillAltitudeSwatch" Width="20" Height="20" BorderBrush="#555" BorderThickness="1" />
     </StackPanel>
 
-    <TextBlock Grid.Row="7" Grid.Column="0" Text="Output Folder" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+    <TextBlock Grid.Row="9" Grid.Column="0" Text="Output Folder" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <TextBox Name="OutputFolderBox" Width="360" TextChanged="OnTextChanged" />
       <Button Content="Browse" Click="OnBrowseOutput" />
     </StackPanel>
 
-    <TextBlock Grid.Row="8" Grid.Column="0" Text="Output Name" VerticalAlignment="Center" />
-    <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+    <TextBlock Grid.Row="10" Grid.Column="0" Text="Output Name" VerticalAlignment="Center" />
+    <StackPanel Grid.Row="10" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <TextBox Name="OutputBaseNameBox" Width="220" TextChanged="OnTextChanged" HorizontalAlignment="Left" />
     </StackPanel>
 
-    <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+    <StackPanel Grid.Row="11" Grid.Column="1" Orientation="Horizontal" Spacing="8">
       <Button Name="GenerateButton" Content="Generate BMP" Click="OnGenerate" />
     </StackPanel>
 
-    <TextBlock Grid.Row="10" Grid.Column="1" Name="StatusText" Margin="0,8,0,0" />
+    <TextBlock Grid.Row="12" Grid.Column="1" Name="StatusText" Margin="0,8,0,0" />
   </Grid>
 </UserControl>

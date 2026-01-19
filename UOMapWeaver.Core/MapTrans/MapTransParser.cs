@@ -6,6 +6,11 @@ public static class MapTransParser
 {
     public static MapTransProfile LoadFromFile(string path)
     {
+        if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            return MapTransJsonSerializer.Load(path);
+        }
+
         var lines = File.ReadAllLines(path);
         var entries = new List<MapTransEntry>();
 
@@ -28,30 +33,30 @@ public static class MapTransParser
                 continue;
             }
 
+            if (tokens.Count >= 3 && TryParseHexByte(tokens[1], out var group))
+            {
+                if (tokens.Count >= 4 &&
+                    TryParseSignedInt(tokens[2], out var groupedAltitude) &&
+                    TryParseHexUShort(tokens[3], out _))
+                {
+                    var tileIds = ParseTileIds(tokens, 3);
+                    entries.Add(new MapTransEntry(colorIndex, groupedAltitude, tileIds, group));
+                    continue;
+                }
+
+                if (TryParseHexUShort(tokens[2], out _))
+                {
+                    var tileIds = ParseTileIds(tokens, 2);
+                    entries.Add(new MapTransEntry(colorIndex, 0, tileIds, group));
+                    continue;
+                }
+            }
+
             if (TryParseSignedInt(tokens[1], out var altitude))
             {
                 var tiles = ParseTileIds(tokens, 2);
                 entries.Add(new MapTransEntry(colorIndex, altitude, tiles));
-                continue;
             }
-
-            if (tokens.Count < 4)
-            {
-                continue;
-            }
-
-            if (!TryParseHexByte(tokens[1], out var group))
-            {
-                continue;
-            }
-
-            if (!TryParseSignedInt(tokens[2], out altitude))
-            {
-                continue;
-            }
-
-            var tileIds = ParseTileIds(tokens, 3);
-            entries.Add(new MapTransEntry(colorIndex, altitude, tileIds, group));
         }
 
         var name = Path.GetFileNameWithoutExtension(path);
@@ -172,8 +177,37 @@ public static class MapTransParser
             return null;
         }
 
-        var palettePath = Path.Combine(directory, "ColorPalette.bmp");
-        return File.Exists(palettePath) ? palettePath : null;
+        var palettePath = Path.Combine(directory, "TerrainPalette.bmp");
+        if (File.Exists(palettePath))
+        {
+            return palettePath;
+        }
+
+        var current = new DirectoryInfo(directory);
+        while (current != null)
+        {
+            palettePath = Path.Combine(current.FullName, "TerrainPalette.bmp");
+            if (File.Exists(palettePath))
+            {
+                return palettePath;
+            }
+
+            if (current.FullName.Equals(UOMapWeaverDataPaths.MapTransRoot, StringComparison.OrdinalIgnoreCase) ||
+                current.FullName.Equals(UOMapWeaverDataPaths.DataRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            current = current.Parent;
+        }
+
+        var legacyFallback = Path.Combine(UOMapWeaverDataPaths.MapTransRoot, "TerrainPalette.bmp");
+        if (File.Exists(legacyFallback))
+        {
+            return legacyFallback;
+        }
+
+        return null;
     }
 }
 

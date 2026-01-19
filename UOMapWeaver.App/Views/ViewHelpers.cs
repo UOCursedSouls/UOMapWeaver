@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using UOMapWeaver.Core.Map;
+using UOMapWeaver.Core.TileColors;
 
 namespace UOMapWeaver.App.Views;
 
@@ -66,6 +67,30 @@ internal static class ViewHelpers
             {
                 AppStatus.SetProgress(percent, true);
                 onProgress?.Invoke(percent);
+            });
+        });
+    }
+
+    internal static IProgress<double> CreateAppProgressDouble(Action<double>? onProgress = null)
+    {
+        return new Progress<double>(percent =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                AppStatus.SetProgress(percent, true);
+                onProgress?.Invoke(percent);
+            });
+        });
+    }
+
+    internal static IProgress<TileColorProgress> CreateTileColorProgress(Action<TileColorProgress>? onProgress = null)
+    {
+        return new Progress<TileColorProgress>(progress =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                AppStatus.SetProgress(progress.Percent, true, progress.ProcessedTiles, progress.TotalTiles);
+                onProgress?.Invoke(progress);
             });
         });
     }
