@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
 
 namespace UOMapWeaver.App;
 
@@ -11,6 +15,17 @@ public static class AppStatus
     public static event EventHandler<AppProgressState>? ProgressChanged;
 
     private static CancellationTokenSource? _cancelSource;
+    private static readonly List<AppLogEntry> _logHistory = new();
+    private static readonly object _logLock = new();
+    private static AppStatusSeverity _minimumSeverity = AppStatusSeverity.Info;
+    private static readonly Stopwatch _operationTimer = new();
+    private static string? _currentOperation;
+
+    public static AppStatusSeverity MinimumSeverity
+    {
+        get => _minimumSeverity;
+        set => _minimumSeverity = value;
+    }
 
     public static string Stamp(string message)
     {
@@ -44,12 +59,99 @@ public static class AppStatus
 
     public static void AppendLog(string message, AppStatusSeverity severity = AppStatusSeverity.Info)
     {
-        LogAppended?.Invoke(null, new AppLogEntry(message, severity));
+        var entry = new AppLogEntry(message, severity, DateTime.Now);
+
+        lock (_logLock)
+        {
+            _logHistory.Add(entry);
+        }
+
+        if (severity >= _minimumSeverity)
+        {
+            LogAppended?.Invoke(null, entry);
+        }
     }
 
     public static void ClearLog()
     {
+        lock (_logLock)
+        {
+            _logHistory.Clear();
+        }
+
         LogCleared?.Invoke(null, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Starts tracking elapsed time for a named operation.
+    /// </summary>
+    public static void BeginOperation(string operationName)
+    {
+        _currentOperation = operationName;
+        _operationTimer.Restart();
+        AppendLog($"Operation started: {operationName}", AppStatusSeverity.Info);
+    }
+
+    /// <summary>
+    /// Ends the current operation and logs the elapsed time.
+    /// </summary>
+    public static TimeSpan EndOperation()
+    {
+        _operationTimer.Stop();
+        var elapsed = _operationTimer.Elapsed;
+        var name = _currentOperation ?? "Unknown";
+        AppendLog($"Operation completed: {name} ({FormatElapsed(elapsed)})", AppStatusSeverity.Info);
+        _currentOperation = null;
+        return elapsed;
+    }
+
+    /// <summary>
+    /// Returns the elapsed time of the current operation without stopping the timer.
+    /// </summary>
+    public static TimeSpan GetOperationElapsed() => _operationTimer.Elapsed;
+
+    /// <summary>
+    /// Returns whether an operation timer is currently running.
+    /// </summary>
+    public static bool IsOperationRunning => _operationTimer.IsRunning;
+
+    /// <summary>
+    /// Returns a snapshot of all log entries, optionally filtered by minimum severity.
+    /// </summary>
+    public static List<AppLogEntry> GetLogHistory(AppStatusSeverity? minimumSeverity = null)
+    {
+        lock (_logLock)
+        {
+            if (minimumSeverity.HasValue)
+            {
+                var min = minimumSeverity.Value;
+                return _logHistory.Where(e => e.Severity >= min).ToList();
+            }
+
+            return new List<AppLogEntry>(_logHistory);
+        }
+    }
+
+    /// <summary>
+    /// Exports the log history to a file. Each line includes timestamp, severity prefix, and message.
+    /// </summary>
+    public static void ExportLog(string filePath, AppStatusSeverity? minimumSeverity = null)
+    {
+        var entries = GetLogHistory(minimumSeverity);
+        var sb = new StringBuilder();
+
+        foreach (var entry in entries)
+        {
+            sb.AppendLine(entry.ToFormattedString());
+        }
+
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllText(filePath, sb.ToString());
     }
 
     public static void SetProgress(double percent, bool isActive, long? processed = null, long? total = null)
@@ -77,6 +179,16 @@ public static class AppStatus
     {
         _cancelSource?.Cancel();
     }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        if (elapsed.TotalMinutes >= 1)
+        {
+            return $"{elapsed.Minutes}m {elapsed.Seconds}.{elapsed.Milliseconds:D3}s";
+        }
+
+        return $"{elapsed.TotalSeconds:F3}s";
+    }
 }
 
 public readonly struct AppStatusMessage
@@ -103,14 +215,39 @@ public enum AppStatusSeverity
 public readonly struct AppLogEntry
 {
     public AppLogEntry(string message, AppStatusSeverity severity)
+        : this(message, severity, DateTime.Now)
+    {
+    }
+
+    public AppLogEntry(string message, AppStatusSeverity severity, DateTime timestamp)
     {
         Message = message;
         Severity = severity;
+        Timestamp = timestamp;
     }
 
     public string Message { get; }
 
     public AppStatusSeverity Severity { get; }
+
+    public DateTime Timestamp { get; }
+
+    public string SeverityPrefix => Severity switch
+    {
+        AppStatusSeverity.Info => "[INFO]",
+        AppStatusSeverity.Success => "[INFO]",
+        AppStatusSeverity.Warning => "[WARN]",
+        AppStatusSeverity.Error => "[ERROR]",
+        _ => "[INFO]"
+    };
+
+    /// <summary>
+    /// Returns a formatted log line: [HH:mm:ss.fff] [SEVERITY] message
+    /// </summary>
+    public string ToFormattedString()
+    {
+        return $"[{Timestamp:HH:mm:ss.fff}] {SeverityPrefix} {Message}";
+    }
 }
 
 public readonly struct AppProgressState
@@ -131,4 +268,3 @@ public readonly struct AppProgressState
 
     public long? Total { get; }
 }
-
