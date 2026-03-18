@@ -4250,7 +4250,24 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     {
         var result = new Dictionary<StaticKey, int>();
         var blockWidth = mapWidth / MapMul.BlockSize;
+
+        if (blockWidth > 0 && blocks.Length % blockWidth != 0)
+        {
+            AppStatus.AppendLog(
+                $"BuildStaticsMultiset: blocks.Length ({blocks.Length}) is not evenly divisible by blockWidth ({blockWidth}). " +
+                $"Expected a multiple of blockWidth for correct grid dimensions.",
+                AppStatusSeverity.Warning);
+        }
+
         var blockHeight = blocks.Length / Math.Max(1, blockWidth);
+        var expectedBlockCount = blockWidth * blockHeight;
+        if (expectedBlockCount != blocks.Length)
+        {
+            AppStatus.AppendLog(
+                $"BuildStaticsMultiset: array size mismatch. blockWidth={blockWidth}, blockHeight={blockHeight}, " +
+                $"expected={expectedBlockCount}, actual={blocks.Length}.",
+                AppStatusSeverity.Warning);
+        }
 
         var startBlockX = rect.X / MapMul.BlockSize;
         var endBlockX = (rect.Right - 1) / MapMul.BlockSize;
