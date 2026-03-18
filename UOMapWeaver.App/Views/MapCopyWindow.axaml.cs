@@ -1531,7 +1531,9 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                                 (byte)(dstGlobalX % MapMul.BlockSize),
                                 (byte)(dstGlobalY % MapMul.BlockSize),
                                 dstGlobalX,
-                                dstGlobalY));
+                                dstGlobalY,
+                                sample.Z,
+                                sample.Hue));
                         }
                     }
 
@@ -1611,7 +1613,9 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                                     (byte)(dstGlobalX % MapMul.BlockSize),
                                     (byte)(dstGlobalY % MapMul.BlockSize),
                                     dstGlobalX,
-                                    dstGlobalY));
+                                    dstGlobalY,
+                                    adjustedEntry.Z,
+                                    adjustedEntry.Hue));
                             }
                         }
                     }
@@ -1683,7 +1687,9 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                                     (byte)dstLocalX,
                                     (byte)dstLocalY,
                                     dstX,
-                                    dstY));
+                                    dstY,
+                                    adjustedEntry.Z,
+                                    adjustedEntry.Hue));
                             }
                         }
 
@@ -1718,27 +1724,61 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             }
             if (sampleChecks.Count > 0)
             {
+                var failedChecks = 0;
                 var checks = sampleChecks.Select(sample =>
                 {
                     var list = sample.BlockIndex >= 0 && sample.BlockIndex < destStaticsBlocks.Length
                         ? destStaticsBlocks[sample.BlockIndex]
                         : null;
-                    var match = list?.Any(entry => entry.TileId == sample.TileId && entry.X == sample.CellX && entry.Y == sample.CellY) == true;
-                    return $"tile 0x{sample.TileId:X4} @ {sample.DestX},{sample.DestY} -> {(match ? "ok" : "missing")}";
-                });
+                    var match = list?.Any(entry =>
+                        entry.TileId == sample.TileId &&
+                        entry.X == sample.CellX &&
+                        entry.Y == sample.CellY &&
+                        entry.Z == sample.Z &&
+                        entry.Hue == sample.Hue) == true;
+                    if (!match)
+                    {
+                        failedChecks++;
+                    }
+
+                    return $"tile 0x{sample.TileId:X4} Z={sample.Z} Hue=0x{sample.Hue:X4} @ {sample.DestX},{sample.DestY} -> {(match ? "ok" : "MISSING")}";
+                }).ToList();
                 AppStatus.AppendLog($"Statics verify: {string.Join(" | ", checks)}", AppStatusSeverity.Info);
+                if (failedChecks > 0)
+                {
+                    AppStatus.AppendLog(
+                        $"Statics verify WARNING: {failedChecks} of {sampleChecks.Count} sample checks failed in memory.",
+                        AppStatusSeverity.Warning);
+                }
             }
 
             var reloadedBlocks = StaticMulCodec.ReadStatics(destStaIdxPath, destStaticsPath, destWidth, destHeight);
+            var rereadFailed = 0;
             var recheck = sampleChecks.Select(sample =>
             {
                 var list = sample.BlockIndex >= 0 && sample.BlockIndex < reloadedBlocks.Length
                     ? reloadedBlocks[sample.BlockIndex]
                     : null;
-                var match = list?.Any(entry => entry.TileId == sample.TileId && entry.X == sample.CellX && entry.Y == sample.CellY) == true;
-                return $"tile 0x{sample.TileId:X4} @ {sample.DestX},{sample.DestY} -> {(match ? "ok" : "missing")}";
-            });
+                var match = list?.Any(entry =>
+                    entry.TileId == sample.TileId &&
+                    entry.X == sample.CellX &&
+                    entry.Y == sample.CellY &&
+                    entry.Z == sample.Z &&
+                    entry.Hue == sample.Hue) == true;
+                if (!match)
+                {
+                    rereadFailed++;
+                }
+
+                return $"tile 0x{sample.TileId:X4} Z={sample.Z} Hue=0x{sample.Hue:X4} @ {sample.DestX},{sample.DestY} -> {(match ? "ok" : "MISSING")}";
+            }).ToList();
             AppStatus.AppendLog($"Statics reread verify: {string.Join(" | ", recheck)}", AppStatusSeverity.Info);
+            if (rereadFailed > 0)
+            {
+                var errorMsg = $"Statics copy verification FAILED: {rereadFailed} of {sampleChecks.Count} samples missing after reread.";
+                AppStatus.AppendLog(errorMsg, AppStatusSeverity.Error);
+                throw new InvalidOperationException(errorMsg);
+            }
 
             var destRect = new RectInt(dest.x, dest.y, rect.Width, rect.Height);
             var deltaX = destRect.X - rect.X;
@@ -4129,7 +4169,9 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         byte CellX,
         byte CellY,
         int DestX,
-        int DestY);
+        int DestY,
+        sbyte Z,
+        ushort Hue);
 
     private static void CompareStaticsRegionTranslated(
         List<StaticMulEntry>[] sourceBlocks,
