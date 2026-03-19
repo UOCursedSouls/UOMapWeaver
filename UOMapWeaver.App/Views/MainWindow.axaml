@@ -21,6 +21,10 @@
                 ToolTip.Tip="Clear all saved field values. Restart to apply." />
         <Button Name="DataReadmeButton" Content="Data" DockPanel.Dock="Right"
                 ToolTip.Tip="Open the UOMapWeaverData folder README" />
+        <Button Name="OpenLogFileButton" Content="Open Log" DockPanel.Dock="Right"
+                ToolTip.Tip="Open the current session log file in the default text editor" />
+        <Button Name="OpenLogFolderButton" Content="Log Folder" DockPanel.Dock="Right"
+                ToolTip.Tip="Open the log folder in file explorer" />
         <Button Name="CancelButton" Content="Stop" DockPanel.Dock="Right" IsEnabled="False"
                 ToolTip.Tip="Cancel the current operation" />
         <SelectableTextBlock Name="BannerText" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap">
@@ -141,6 +145,9 @@
               <MenuItem Header="Select All" Click="OnSelectAllLogs" />
               <MenuItem Header="Copy Selected" Click="OnCopySelectedLogs" />
               <MenuItem Header="Copy All" Click="OnCopyAllLogs" />
+              <Separator />
+              <MenuItem Header="Export Log..." Click="OnExportLog" />
+              <MenuItem Header="Clear Log" Click="OnClearLog" />
             </ContextMenu>
           </ListBox.ContextMenu>
           <ListBox.Styles>

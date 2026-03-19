@@ -29,6 +29,16 @@ public static class AppStatus
     }
 
     /// <summary>
+    /// Returns the path to the current session's log file, or null if file logging is not active.
+    /// </summary>
+    public static string? LogFilePath => _fileLogger?.LogFilePath;
+
+    /// <summary>
+    /// Returns the path to the log directory.
+    /// </summary>
+    public static string LogDirectory => Path.Combine(UOMapWeaver.Core.UOMapWeaverDataPaths.DataRoot, "logs");
+
+    /// <summary>
     /// Initializes persistent file logging. Call once at app startup after data folders are created.
     /// </summary>
     public static void InitFileLogger()

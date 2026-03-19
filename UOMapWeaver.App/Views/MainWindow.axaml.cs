@@ -41,6 +41,8 @@ public sealed partial class MainWindow : Window
         ResetStateButton.Click += (_, _) => ResetUiState();
         CancelButton.Click += (_, _) => AppStatus.RequestCancel();
         DataReadmeButton.Click += (_, _) => OpenDataReadme();
+        OpenLogFileButton.Click += (_, _) => OpenLogFile();
+        OpenLogFolderButton.Click += (_, _) => OpenLogFolder();
 
         // Welcome tab navigation buttons.
         GoTileColors.Click += (_, _) => MainTabControl.SelectedIndex = 1;
@@ -271,6 +273,76 @@ public sealed partial class MainWindow : Window
         {
             AppStatus.SetWarning($"Unable to open data README: {ex.Message}");
         }
+    }
+
+    private void OpenLogFile()
+    {
+        try
+        {
+            var logPath = AppStatus.LogFilePath;
+            if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+            {
+                AppStatus.SetWarning("No log file available for this session.");
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetWarning($"Unable to open log file: {ex.Message}");
+        }
+    }
+
+    private void OpenLogFolder()
+    {
+        try
+        {
+            var logDir = AppStatus.LogDirectory;
+            if (!Directory.Exists(logDir))
+            {
+                Directory.CreateDirectory(logDir);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logDir,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetWarning($"Unable to open log folder: {ex.Message}");
+        }
+    }
+
+    private async void OnExportLog(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var path = await ViewHelpers.PickSaveFileAsync(this, "Export Log", "log");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            AppStatus.ExportLog(path);
+            AppStatus.SetSuccess($"Log exported to {Path.GetFileName(path)}.");
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetError($"Export failed: {ex.Message}");
+        }
+    }
+
+    private void OnClearLog(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        AppStatus.ClearLog();
+        AppStatus.SetInfo("Log cleared.");
     }
 
     private void ResetUiState()
