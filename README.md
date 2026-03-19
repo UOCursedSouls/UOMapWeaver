@@ -17,6 +17,7 @@ managing color palettes, and working with the newer `.uop` archive format.
 
 - [How It Works](#how-it-works)
 - [Features at a Glance](#features-at-a-glance)
+- [Logging and Backups](#logging-and-backups)
 - [Requirements](#requirements)
 - [Building and Running](#building-and-running)
 - [Terrain Encodings Explained](#terrain-encodings-explained)
@@ -60,6 +61,7 @@ definitions and placement rules.
 
 ## Features at a Glance
 
+### Core Tools
 - **MUL → BMP**: export terrain and altitude to editable images.
 - **BMP → MUL**: import edited images back to binary map files.
 - **GenStatics**: procedurally generate statics from terrain/biome definitions.
@@ -67,9 +69,59 @@ definitions and placement rules.
 - **Tile Color Map**: build JSON color tables from `.mul` files or XML definitions.
 - **Map Copy**: copy rectangular regions (terrain + statics) between maps.
 - **UOP Tools**: extract and pack `.uop` archives (map, art, gump, sound).
+
+### Quality of Life
+- **Welcome Tab**: quick-start guide with tool descriptions and navigation buttons.
 - **Preview**: inline zoom/pan preview of generated images.
 - **UI Persistence**: save and restore all fields and options between sessions.
 - **Auto-detection**: map dimensions are detected from `.mul` file size.
+- **Tooltips**: all buttons and tabs have descriptive tooltips.
+
+### Safety & Logging
+- **Automatic Backups**: destination files are backed up before any destructive operation. Backups stored in `UOMapWeaverData/backups/` with max 5 per file rotation.
+- **Restore Last Backup**: one-click restore from the Map Copy tab.
+- **Persistent File Logging**: all operations logged to `UOMapWeaverData/logs/` with timestamps, severity levels, and automatic rotation (max 10 files).
+- **Operation Timer**: elapsed time tracking for long-running operations.
+- **Structured Log Entries**: `[HH:mm:ss.fff] [INFO|WARN|ERROR]` format in both UI and log files.
+
+### Map Copy Improvements
+- **Tile Validation**: compares source/destination art libraries with 5-category classification (matched, diff hash, missing in dest, missing in source, no art). Reduces false positives by treating tiles without art entries as informational, not errors.
+- **Full Verification**: post-copy sample verification checks TileId, X, Y, Z, and Hue (not just presence). Failed verification halts the operation.
+- **Tile Remapping**: load missing/different tiles for interactive replacement mapping.
+- **Block Dimension Validation**: warns if statics block array dimensions don't match expected width × height.
+
+---
+
+## Logging and Backups
+
+### File Logging
+
+All operations are logged to `UOMapWeaverData/logs/` with timestamped filenames
+(`UOMapWeaver_YYYY-MM-DD_HHmmss.log`). Log entries use structured format:
+
+```
+[14:30:22.456] [INFO] Reading map0.mul (7168x4096)...
+[14:30:23.891] [INFO] Exported Terrain.bmp (7168x4096, Tile JSON RGB24)
+[14:30:24.012] [WARN] Block 1234: statics count mismatch (expected 8, got 6)
+[14:30:24.013] [ERROR] Failed to read staidx0.mul: file not found
+```
+
+Maximum 10 log files are kept. Oldest are deleted automatically.
+
+### Automatic Backups
+
+Before any operation that overwrites a file (BMP → MUL, Map Copy, etc.),
+the destination file is backed up to `UOMapWeaverData/backups/`:
+
+```
+backups/
+  map0.mul_20260319_143022.bak.mul
+  statics0.mul_20260319_143022.bak.mul
+  staidx0.mul_20260319_143022.bak.mul
+```
+
+Maximum 5 backups per file. Use the **Restore Last Backup** button in the
+Map Copy tab to restore the most recent backup.
 
 ---
 
