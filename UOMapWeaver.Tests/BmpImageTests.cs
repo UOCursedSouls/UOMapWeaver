@@ -99,6 +99,15 @@ public sealed class BmpImageTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Bmp8Image_ConstructorValidation()
+    {
+        var palette = Bmp8Codec.CreateGrayscalePalette();
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Bmp8Image(0, 10, new byte[0], palette));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Bmp8Image(10, 0, new byte[0], palette));
+        Assert.Throws<ArgumentException>(() => new Bmp8Image(2, 2, new byte[3], palette));
+    }
+
     // --- Bmp24Image tests ---
 
     [Fact]

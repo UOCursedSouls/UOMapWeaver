@@ -4,6 +4,18 @@ public sealed class Bmp8Image
 {
     public Bmp8Image(int width, int height, byte[] pixels, BmpPaletteEntry[] palette)
     {
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "Width and height must be positive.");
+        }
+
+        if (pixels.Length != width * height)
+        {
+            throw new ArgumentException(
+                $"Pixel buffer size ({pixels.Length}) does not match width*height ({width * height}).",
+                nameof(pixels));
+        }
+
         Width = width;
         Height = height;
         Pixels = pixels;
