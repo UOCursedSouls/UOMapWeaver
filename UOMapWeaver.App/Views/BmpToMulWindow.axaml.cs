@@ -317,7 +317,8 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 staidxPath = Path.Combine(outputFolder, staidxName);
             }
 
-            if (!await ConfirmOverwriteAsync("Overwrite output files?", staidxPath is null ? new[] { mapPath } : new[] { mapPath, staidxPath, staticsPath! }))
+            var outputFiles = staidxPath is null ? new[] { mapPath } : new[] { mapPath, staidxPath, staticsPath! };
+            if (!await ConfirmOverwriteAsync("Overwrite output files?", outputFiles))
             {
                 StatusText.Text = "Conversion cancelled.";
                 StatusTextPreview.Text = StatusText.Text;
@@ -325,6 +326,14 @@ public sealed partial class BmpToMulView : UserControl, IAppStateView
                 AppStatus.AppendLog(StatusText.Text, AppStatusSeverity.Warning);
                 AppStatus.SetCancelSource(null);
                 return;
+            }
+
+            // Backup destination files before overwriting.
+            var existingOutputs = outputFiles.Where(File.Exists).ToArray();
+            if (existingOutputs.Length > 0)
+            {
+                var backed = BackupManager.BackupFiles(existingOutputs);
+                AppStatus.AppendLog($"Backed up {backed} output file(s) before conversion.", AppStatusSeverity.Info);
             }
 
             TileColorMap? tileMap = null;

@@ -20,11 +20,33 @@ public static class AppStatus
     private static AppStatusSeverity _minimumSeverity = AppStatusSeverity.Info;
     private static readonly Stopwatch _operationTimer = new();
     private static string? _currentOperation;
+    private static FileLogger? _fileLogger;
 
     public static AppStatusSeverity MinimumSeverity
     {
         get => _minimumSeverity;
         set => _minimumSeverity = value;
+    }
+
+    /// <summary>
+    /// Initializes persistent file logging. Call once at app startup after data folders are created.
+    /// </summary>
+    public static void InitFileLogger()
+    {
+        _fileLogger = new FileLogger();
+        if (_fileLogger.LogFilePath is not null)
+        {
+            AppendLog($"File logging started: {_fileLogger.LogFilePath}", AppStatusSeverity.Info);
+        }
+    }
+
+    /// <summary>
+    /// Flushes and closes the file logger. Call at app shutdown.
+    /// </summary>
+    public static void ShutdownFileLogger()
+    {
+        _fileLogger?.Dispose();
+        _fileLogger = null;
     }
 
     public static string Stamp(string message)
@@ -65,6 +87,9 @@ public static class AppStatus
         {
             _logHistory.Add(entry);
         }
+
+        // Write to persistent file log regardless of severity filter.
+        _fileLogger?.Write(entry);
 
         if (severity >= _minimumSeverity)
         {

@@ -134,7 +134,10 @@
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
               <ComboBox Name="PreviewEncodingComboBox" Width="220" SelectionChanged="OnPreviewEncodingChanged" />
 				<Button Name="PreviewGenerateButton" Content="Generate Preview BMPs" Click="OnGeneratePreview" />
-				<Button Name="CopyButton" Content="Copy Region" Click="OnCopy" />
+				<Button Name="CopyButton" Content="Copy Region" Click="OnCopy"
+				        ToolTip.Tip="Copy the selected source region to the destination map" />
+				<Button Name="RestoreBackupButton" Content="Restore Last Backup" Click="OnRestoreBackup"
+				        ToolTip.Tip="Restore the most recent backup of the destination map file" />
 				<TextBlock Name="StatusText" VerticalAlignment="Center" />
             </StackPanel>
 

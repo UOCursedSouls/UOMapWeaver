@@ -803,27 +803,50 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                     ? ArtIndex.Load(clientInfo.DestArtIndexPath, clientInfo.DestArtPath)
                     : null;
 
-                var missingTerrain = new Dictionary<ushort, int>();
-                var missingStatics = new Dictionary<ushort, int>();
+                var missingInDestTerrain = new Dictionary<ushort, int>();
+                var missingInDestStatics = new Dictionary<ushort, int>();
+                var missingInSourceTerrain = new Dictionary<ushort, int>();
+                var missingInSourceStatics = new Dictionary<ushort, int>();
+                var noArtTerrain = new Dictionary<ushort, int>();
+                var noArtStatics = new Dictionary<ushort, int>();
                 var diffTerrain = new Dictionary<ushort, int>();
                 var diffStatics = new Dictionary<ushort, int>();
+                var matchedTerrain = 0;
+                var matchedStatics = 0;
 
                 foreach (var (tileId, count) in terrainCounts)
                 {
                     var artIndex = tileId;
-                    if (destArt is null || !destArt.HasEntry(artIndex))
-                    {
-                        missingTerrain[tileId] = count;
-                        continue;
-                    }
+                    var inSource = sourceArt is not null && sourceArt.HasEntry(artIndex);
+                    var inDest = destArt is not null && destArt.HasEntry(artIndex);
 
-                    if (sourceArt is not null && sourceArt.HasEntry(artIndex))
+                    if (!inSource && !inDest)
                     {
-                        var sourceHash = sourceArt.GetEntryHashHex(artIndex);
-                        var destHash = destArt.GetEntryHashHex(artIndex);
+                        // No art entry in either client — valid tile ID without cached art.
+                        noArtTerrain[tileId] = count;
+                    }
+                    else if (inSource && !inDest)
+                    {
+                        // Present in source but missing from destination — likely needs art patching.
+                        missingInDestTerrain[tileId] = count;
+                    }
+                    else if (!inSource && inDest)
+                    {
+                        // Present in destination but missing from source — cannot compare.
+                        missingInSourceTerrain[tileId] = count;
+                    }
+                    else
+                    {
+                        // Both have entries — compare hashes.
+                        var sourceHash = sourceArt!.GetEntryHashHex(artIndex);
+                        var destHash = destArt!.GetEntryHashHex(artIndex);
                         if (!string.Equals(sourceHash, destHash, StringComparison.OrdinalIgnoreCase))
                         {
                             diffTerrain[tileId] = count;
+                        }
+                        else
+                        {
+                            matchedTerrain++;
                         }
                     }
                 }
@@ -831,28 +854,47 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                 foreach (var (tileId, count) in staticCounts)
                 {
                     var artIndex = 0x4000 + tileId;
-                    if (destArt is null || !destArt.HasEntry(artIndex))
-                    {
-                        missingStatics[tileId] = count;
-                        continue;
-                    }
+                    var inSource = sourceArt is not null && sourceArt.HasEntry(artIndex);
+                    var inDest = destArt is not null && destArt.HasEntry(artIndex);
 
-                    if (sourceArt is not null && sourceArt.HasEntry(artIndex))
+                    if (!inSource && !inDest)
                     {
-                        var sourceHash = sourceArt.GetEntryHashHex(artIndex);
-                        var destHash = destArt.GetEntryHashHex(artIndex);
+                        noArtStatics[tileId] = count;
+                    }
+                    else if (inSource && !inDest)
+                    {
+                        missingInDestStatics[tileId] = count;
+                    }
+                    else if (!inSource && inDest)
+                    {
+                        missingInSourceStatics[tileId] = count;
+                    }
+                    else
+                    {
+                        var sourceHash = sourceArt!.GetEntryHashHex(artIndex);
+                        var destHash = destArt!.GetEntryHashHex(artIndex);
                         if (!string.Equals(sourceHash, destHash, StringComparison.OrdinalIgnoreCase))
                         {
                             diffStatics[tileId] = count;
+                        }
+                        else
+                        {
+                            matchedStatics++;
                         }
                     }
                 }
 
                 return new TileValidationResult(
-                    missingTerrain,
-                    missingStatics,
+                    missingInDestTerrain,
+                    missingInDestStatics,
+                    missingInSourceTerrain,
+                    missingInSourceStatics,
+                    noArtTerrain,
+                    noArtStatics,
                     diffTerrain,
                     diffStatics,
+                    matchedTerrain,
+                    matchedStatics,
                     terrainCounts.Count,
                     staticCounts.Count,
                     destArt is not null,
@@ -952,8 +994,21 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             return;
         }
 
-        LoadRemapFromMissing(_lastValidation.MissingTerrain, _lastValidation.MissingStatics);
-        TileReplaceStatusText.Text = $"Loaded {_lastValidation.MissingTerrain.Count:N0} terrain, {_lastValidation.MissingStatics.Count:N0} statics.";
+        // Load tiles that need remapping: those with different hashes or missing in destination (but present in source).
+        var terrainToRemap = new Dictionary<ushort, int>(_lastValidation.DiffTerrain);
+        foreach (var pair in _lastValidation.MissingInDestTerrain)
+        {
+            terrainToRemap[pair.Key] = pair.Value;
+        }
+
+        var staticsToRemap = new Dictionary<ushort, int>(_lastValidation.DiffStatics);
+        foreach (var pair in _lastValidation.MissingInDestStatics)
+        {
+            staticsToRemap[pair.Key] = pair.Value;
+        }
+
+        LoadRemapFromMissing(terrainToRemap, staticsToRemap);
+        TileReplaceStatusText.Text = $"Loaded {terrainToRemap.Count:N0} terrain, {staticsToRemap.Count:N0} statics (diff + missing in dest).";
         AppStatus.AppendLog(TileReplaceStatusText.Text, AppStatusSeverity.Info);
     }
 
@@ -963,6 +1018,35 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         _staticsRemapItems.Clear();
         TileReplaceStatusText.Text = "Remap list cleared.";
         AppStatus.AppendLog(TileReplaceStatusText.Text, AppStatusSeverity.Info);
+    }
+
+    private void OnRestoreBackup(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var destMapPath = DestMapPathBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(destMapPath))
+        {
+            AppStatus.SetError("Set a destination map.mul path first.");
+            return;
+        }
+
+        var originalName = Path.GetFileName(destMapPath);
+        var latestBackup = BackupManager.GetLatestBackup(originalName);
+        if (latestBackup is null)
+        {
+            AppStatus.SetWarning($"No backup found for {originalName}.");
+            return;
+        }
+
+        if (BackupManager.RestoreLatestBackup(originalName, destMapPath))
+        {
+            StatusText.Text = $"Restored {originalName} from backup.";
+            AppStatus.SetSuccess(StatusText.Text);
+        }
+        else
+        {
+            StatusText.Text = $"Failed to restore {originalName}.";
+            AppStatus.SetError(StatusText.Text);
+        }
     }
 
     private async void OnCopy(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -1123,6 +1207,14 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
                 StatusText.Text = "Copy cancelled.";
                 AppStatus.SetWarning(StatusText.Text);
                 return;
+            }
+
+            // Backup destination files before overwriting.
+            var existingTargets = overwriteTargets.Where(File.Exists).ToArray();
+            if (existingTargets.Length > 0)
+            {
+                var backed = BackupManager.BackupFiles(existingTargets);
+                AppStatus.AppendLog($"Backed up {backed} destination file(s) before copy.", AppStatusSeverity.Info);
             }
 
             var effectiveSourceRect = sourceRect;
@@ -4675,30 +4767,54 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
         _missingTerrainEntries.Clear();
         _missingStaticsEntries.Clear();
 
-        foreach (var pair in result.MissingTerrain.OrderByDescending(pair => pair.Value))
-        {
-            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing");
-        }
-
+        // Diff entries are errors — art hashes differ between source and destination.
         foreach (var pair in result.DiffTerrain.OrderByDescending(pair => pair.Value))
         {
-            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) diff");
+            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) DIFF HASH");
         }
 
-        foreach (var pair in result.MissingStatics.OrderByDescending(pair => pair.Value))
+        // Missing in dest (but present in source) — these need art patching.
+        foreach (var pair in result.MissingInDestTerrain.OrderByDescending(pair => pair.Value))
         {
-            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing");
+            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing in dest");
+        }
+
+        // Missing in source — cannot compare, informational.
+        foreach (var pair in result.MissingInSourceTerrain.OrderByDescending(pair => pair.Value))
+        {
+            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing in source");
+        }
+
+        // No art entry in either — valid tile IDs with no art data, informational.
+        foreach (var pair in result.NoArtTerrain.OrderByDescending(pair => pair.Value))
+        {
+            _missingTerrainEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) no art");
         }
 
         foreach (var pair in result.DiffStatics.OrderByDescending(pair => pair.Value))
         {
-            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) diff");
+            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) DIFF HASH");
+        }
+
+        foreach (var pair in result.MissingInDestStatics.OrderByDescending(pair => pair.Value))
+        {
+            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing in dest");
+        }
+
+        foreach (var pair in result.MissingInSourceStatics.OrderByDescending(pair => pair.Value))
+        {
+            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) missing in source");
+        }
+
+        foreach (var pair in result.NoArtStatics.OrderByDescending(pair => pair.Value))
+        {
+            _missingStaticsEntries.Add($"0x{pair.Key:X4} ({pair.Value:N0}) no art");
         }
 
         ValidationMissingTerrainText.Text =
-            $"Unique: {result.TerrainUniqueCount:N0} | Missing: {result.MissingTerrain.Count:N0} | Diff: {result.DiffTerrain.Count:N0}";
+            $"Matched: {result.MatchedTerrainCount:N0} | Diff: {result.DiffTerrain.Count:N0} | Missing dest: {result.MissingInDestTerrain.Count:N0} | Missing src: {result.MissingInSourceTerrain.Count:N0} | No art: {result.NoArtTerrain.Count:N0}";
         ValidationMissingStaticsText.Text =
-            $"Unique: {result.StaticUniqueCount:N0} | Missing: {result.MissingStatics.Count:N0} | Diff: {result.DiffStatics.Count:N0}";
+            $"Matched: {result.MatchedStaticsCount:N0} | Diff: {result.DiffStatics.Count:N0} | Missing dest: {result.MissingInDestStatics.Count:N0} | Missing src: {result.MissingInSourceStatics.Count:N0} | No art: {result.NoArtStatics.Count:N0}";
 
         var artNotice = result.HasDestArt
             ? (result.HasSourceArt ? "Art compare enabled." : "Art compare limited (source art missing).")
@@ -4708,9 +4824,30 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             $"Terrain IDs: {result.TerrainUniqueCount:N0}, Static IDs: {result.StaticUniqueCount:N0}. {artNotice}";
 
         AppStatus.AppendLog("Tile validation completed.", AppStatusSeverity.Success);
+
+        // Log counts per category.
         AppStatus.AppendLog(
-            $"Missing terrain {result.MissingTerrain.Count:N0}, missing statics {result.MissingStatics.Count:N0}, diff terrain {result.DiffTerrain.Count:N0}, diff statics {result.DiffStatics.Count:N0}.",
-            AppStatusSeverity.Info);
+            $"Terrain — Matched: {result.MatchedTerrainCount:N0}, Diff: {result.DiffTerrain.Count:N0}, Missing in dest: {result.MissingInDestTerrain.Count:N0}, Missing in source: {result.MissingInSourceTerrain.Count:N0}, No art: {result.NoArtTerrain.Count:N0}",
+            result.DiffTerrain.Count > 0 ? AppStatusSeverity.Error : AppStatusSeverity.Info);
+
+        AppStatus.AppendLog(
+            $"Statics — Matched: {result.MatchedStaticsCount:N0}, Diff: {result.DiffStatics.Count:N0}, Missing in dest: {result.MissingInDestStatics.Count:N0}, Missing in source: {result.MissingInSourceStatics.Count:N0}, No art: {result.NoArtStatics.Count:N0}",
+            result.DiffStatics.Count > 0 ? AppStatusSeverity.Error : AppStatusSeverity.Info);
+
+        // Tolerance mode: log no-art and missing-in-source as INFO, missing-in-dest as WARNING.
+        if (result.MissingInDestTerrain.Count > 0 || result.MissingInDestStatics.Count > 0)
+        {
+            AppStatus.AppendLog(
+                $"Warning: {result.MissingInDestTerrain.Count + result.MissingInDestStatics.Count} tile(s) have art in source but not destination — these may display incorrectly.",
+                AppStatusSeverity.Warning);
+        }
+
+        if (result.NoArtTerrain.Count > 0 || result.NoArtStatics.Count > 0)
+        {
+            AppStatus.AppendLog(
+                $"Info: {result.NoArtTerrain.Count + result.NoArtStatics.Count} tile(s) have no art entry in either client — likely valid IDs without cached art data.",
+                AppStatusSeverity.Info);
+        }
     }
 
     private sealed record ClientInfo(
@@ -4722,32 +4859,62 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
     private sealed class TileValidationResult
     {
         public TileValidationResult(
-            Dictionary<ushort, int> missingTerrain,
-            Dictionary<ushort, int> missingStatics,
+            Dictionary<ushort, int> missingInDestTerrain,
+            Dictionary<ushort, int> missingInDestStatics,
+            Dictionary<ushort, int> missingInSourceTerrain,
+            Dictionary<ushort, int> missingInSourceStatics,
+            Dictionary<ushort, int> noArtTerrain,
+            Dictionary<ushort, int> noArtStatics,
             Dictionary<ushort, int> diffTerrain,
             Dictionary<ushort, int> diffStatics,
+            int matchedTerrainCount,
+            int matchedStaticsCount,
             int terrainUniqueCount,
             int staticUniqueCount,
             bool hasDestArt,
             bool hasSourceArt)
         {
-            MissingTerrain = missingTerrain;
-            MissingStatics = missingStatics;
+            MissingInDestTerrain = missingInDestTerrain;
+            MissingInDestStatics = missingInDestStatics;
+            MissingInSourceTerrain = missingInSourceTerrain;
+            MissingInSourceStatics = missingInSourceStatics;
+            NoArtTerrain = noArtTerrain;
+            NoArtStatics = noArtStatics;
             DiffTerrain = diffTerrain;
             DiffStatics = diffStatics;
+            MatchedTerrainCount = matchedTerrainCount;
+            MatchedStaticsCount = matchedStaticsCount;
             TerrainUniqueCount = terrainUniqueCount;
             StaticUniqueCount = staticUniqueCount;
             HasDestArt = hasDestArt;
             HasSourceArt = hasSourceArt;
         }
 
-        public Dictionary<ushort, int> MissingTerrain { get; }
+        /// <summary>Tiles present in source art but missing from destination art.</summary>
+        public Dictionary<ushort, int> MissingInDestTerrain { get; }
 
-        public Dictionary<ushort, int> MissingStatics { get; }
+        /// <summary>Tiles present in source art but missing from destination art.</summary>
+        public Dictionary<ushort, int> MissingInDestStatics { get; }
+
+        /// <summary>Tiles present in destination art but missing from source art.</summary>
+        public Dictionary<ushort, int> MissingInSourceTerrain { get; }
+
+        /// <summary>Tiles present in destination art but missing from source art.</summary>
+        public Dictionary<ushort, int> MissingInSourceStatics { get; }
+
+        /// <summary>Tiles with no art entry in either source or destination (valid IDs without cached art).</summary>
+        public Dictionary<ushort, int> NoArtTerrain { get; }
+
+        /// <summary>Tiles with no art entry in either source or destination (valid IDs without cached art).</summary>
+        public Dictionary<ushort, int> NoArtStatics { get; }
 
         public Dictionary<ushort, int> DiffTerrain { get; }
 
         public Dictionary<ushort, int> DiffStatics { get; }
+
+        public int MatchedTerrainCount { get; }
+
+        public int MatchedStaticsCount { get; }
 
         public int TerrainUniqueCount { get; }
 

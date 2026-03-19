@@ -37,6 +37,7 @@ internal static class UOMapWeaverDataBootstrapper
         Directory.CreateDirectory(UOMapWeaverDataPaths.PalettesRoot);
         Directory.CreateDirectory(UOMapWeaverDataPaths.PresetsRoot);
         Directory.CreateDirectory(UOMapWeaverDataPaths.DefinitionsRoot);
+        Directory.CreateDirectory(BackupManager.BackupDirectory);
 
         EnsureFolderReadmes();
         EnsureMapPresets(force: false);

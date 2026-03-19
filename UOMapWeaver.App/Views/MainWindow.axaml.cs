@@ -42,6 +42,17 @@ public sealed partial class MainWindow : Window
         CancelButton.Click += (_, _) => AppStatus.RequestCancel();
         DataReadmeButton.Click += (_, _) => OpenDataReadme();
 
+        // Welcome tab navigation buttons.
+        GoTileColors.Click += (_, _) => MainTabControl.SelectedIndex = 1;
+        GoUopTools.Click += (_, _) => MainTabControl.SelectedIndex = 2;
+        GoMulToBmp.Click += (_, _) => MainTabControl.SelectedIndex = 3;
+        GoBmpToMul.Click += (_, _) => MainTabControl.SelectedIndex = 4;
+        GoGenStatics.Click += (_, _) => MainTabControl.SelectedIndex = 5;
+        GoBlankBmp.Click += (_, _) => MainTabControl.SelectedIndex = 6;
+        GoMapCopy.Click += (_, _) => MainTabControl.SelectedIndex = 7;
+
+        PopulateWelcomeInfo();
+
         LogList.ItemsSource = _logEntries;
         LogList.KeyDown += OnLogListKeyDown;
 
@@ -198,6 +209,39 @@ public sealed partial class MainWindow : Window
             AppStatusSeverity.Success => Brushes.LightGreen,
             _ => Brushes.White
         };
+    }
+
+    private void PopulateWelcomeInfo()
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var versionText = version is not null ? $"v{version.Major}.{version.Minor}.{version.Build}" : "";
+        WelcomeVersionText.Text = $"UOMapWeaver {versionText}".TrimEnd();
+
+        // Show recently used paths from saved settings.
+        var pathKeys = new[]
+        {
+            ("Source Map", "MapCopy.SourceMapPath"),
+            ("Dest Map", "MapCopy.DestMapPath"),
+            ("Output Folder", "BmpToMul.OutputFolder"),
+            ("Terrain BMP", "BmpToMul.TerrainBmpPath"),
+            ("Altitude BMP", "BmpToMul.AltitudeBmpPath"),
+            ("MUL Source", "MulToBmp.MapMulPath"),
+        };
+
+        var recentLines = new System.Collections.Generic.List<string>();
+        foreach (var (label, key) in pathKeys)
+        {
+            var value = AppSettings.GetString(key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                recentLines.Add($"{label}: {value}");
+            }
+        }
+
+        if (recentLines.Count > 0)
+        {
+            WelcomeRecentPathsText.Text = string.Join(Environment.NewLine, recentLines);
+        }
     }
 
     private void OpenDataReadme()

@@ -13,11 +13,16 @@
     </Grid.RowDefinitions>
     <Border Grid.Row="0" Padding="6" Background="#1E1E1E">
       <DockPanel>
-        <ToggleButton Name="LogsToggle" Content="Log" DockPanel.Dock="Left" />
-        <ToggleButton Name="SaveStateToggle" Content="Save Fields" DockPanel.Dock="Right" />
-        <Button Name="ResetStateButton" Content="Reset Fields" DockPanel.Dock="Right" />
-        <Button Name="DataReadmeButton" Content="Data" DockPanel.Dock="Right" />
-        <Button Name="CancelButton" Content="Stop" DockPanel.Dock="Right" IsEnabled="False" />
+        <ToggleButton Name="LogsToggle" Content="Log" DockPanel.Dock="Left"
+                      ToolTip.Tip="Toggle the log overlay to view operation history" />
+        <ToggleButton Name="SaveStateToggle" Content="Save Fields" DockPanel.Dock="Right"
+                      ToolTip.Tip="When enabled, field values are saved and restored between sessions" />
+        <Button Name="ResetStateButton" Content="Reset Fields" DockPanel.Dock="Right"
+                ToolTip.Tip="Clear all saved field values. Restart to apply." />
+        <Button Name="DataReadmeButton" Content="Data" DockPanel.Dock="Right"
+                ToolTip.Tip="Open the UOMapWeaverData folder README" />
+        <Button Name="CancelButton" Content="Stop" DockPanel.Dock="Right" IsEnabled="False"
+                ToolTip.Tip="Cancel the current operation" />
         <SelectableTextBlock Name="BannerText" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap">
           <SelectableTextBlock.Inlines>
             <Run Name="BannerTimestampRun" Text="[00:00:00.000]" Foreground="#9A9A9A" />
@@ -27,26 +32,95 @@
         </SelectableTextBlock>
       </DockPanel>
     </Border>
-    <TabControl Grid.Row="1" Margin="8">
-      <TabItem Header="Tile Colors">
+    <TabControl Name="MainTabControl" Grid.Row="1" Margin="8">
+      <TabItem ToolTip.Tip="Quick start guide, version info, and links to each tool">
+        <TabItem.Header>
+          <TextBlock Text="Welcome" />
+        </TabItem.Header>
+        <ScrollViewer Padding="16">
+          <StackPanel Spacing="16">
+            <TextBlock Name="WelcomeVersionText" FontSize="20" FontWeight="Bold" Text="UOMapWeaver" />
+            <TextBlock TextWrapping="Wrap" Foreground="#CCCCCC"
+                       Text="A desktop tool for Ultima Online map creation and editing. Convert between MUL/BMP formats, generate statics, copy map regions, manage tile colors, and more." />
+
+            <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Tools" FontWeight="Bold" FontSize="16" />
+
+                <Button Name="GoTileColors" Content="Tile Colors — Build tile-to-color JSON from client data"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Generate a JSON mapping of tile IDs to RGB colors from radarcol.mul or tiledata.mul" />
+                <Button Name="GoUopTools" Content="UOP Pack/Unpack — Convert between UOP and MUL formats"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Pack MUL files into UOP format or extract MUL files from UOP archives" />
+                <Button Name="GoMulToBmp" Content="MUL to BMP — Export map.mul terrain to a BMP image"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Read a map.mul file and render it as an 8-bit or 24-bit BMP image" />
+                <Button Name="GoBmpToMul" Content="BMP to MUL — Convert BMP images into map.mul terrain"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Convert altitude and terrain BMP images back into a map.mul file" />
+                <Button Name="GoGenStatics" Content="Gen Statics — Generate statics from placement rules"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Generate statics.mul and staidx.mul from XML placement definitions" />
+                <Button Name="GoBlankBmp" Content="Blank BMP — Create empty BMP canvases for map editing"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Create blank 8-bit BMP images at standard UO map dimensions" />
+                <Button Name="GoMapCopy" Content="Map Copy — Copy terrain and statics between maps"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Copy rectangular regions of terrain and statics from one map to another" />
+              </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Recent Paths" FontWeight="Bold" FontSize="16" />
+                <TextBlock Name="WelcomeRecentPathsText" TextWrapping="Wrap" Foreground="#AAAAAA"
+                           Text="No saved paths yet. Use the tools above and enable Save Fields to remember your paths." />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem ToolTip.Tip="Build tile-to-color JSON from client radarcol.mul or tiledata.mul">
+        <TabItem.Header>
+          <TextBlock Text="Tile Colors" />
+        </TabItem.Header>
         <views:TileColorMapView />
       </TabItem>
-      <TabItem Header="UOP Pack/Unpack">
+      <TabItem ToolTip.Tip="Pack MUL files into UOP or extract MUL from UOP archives">
+        <TabItem.Header>
+          <TextBlock Text="UOP Pack/Unpack" />
+        </TabItem.Header>
         <views:UopToolsView />
       </TabItem>
-      <TabItem Header="MUL -> BMP">
+      <TabItem ToolTip.Tip="Export map.mul terrain to a BMP image for editing">
+        <TabItem.Header>
+          <TextBlock Text="MUL to BMP" />
+        </TabItem.Header>
         <views:MulToBmpView />
       </TabItem>
-      <TabItem Header="BMP -> MUL">
+      <TabItem ToolTip.Tip="Convert altitude and terrain BMP images into map.mul">
+        <TabItem.Header>
+          <TextBlock Text="BMP to MUL" />
+        </TabItem.Header>
         <views:BmpToMulView />
       </TabItem>
-      <TabItem Header="Gen Statics">
+      <TabItem ToolTip.Tip="Generate statics.mul and staidx.mul from XML placement rules">
+        <TabItem.Header>
+          <TextBlock Text="Gen Statics" />
+        </TabItem.Header>
         <views:GenStaticsView />
       </TabItem>
-      <TabItem Header="Blank BMP">
+      <TabItem ToolTip.Tip="Create blank 8-bit BMP canvases at standard UO map dimensions">
+        <TabItem.Header>
+          <TextBlock Text="Blank BMP" />
+        </TabItem.Header>
         <views:BlankBmpView />
       </TabItem>
-      <TabItem Header="Map Copy">
+      <TabItem ToolTip.Tip="Copy rectangular regions of terrain and statics between maps">
+        <TabItem.Header>
+          <TextBlock Text="Map Copy" />
+        </TabItem.Header>
         <views:MapCopyView />
       </TabItem>
     </TabControl>
@@ -102,4 +176,3 @@
     </Border>
   </Grid>
 </Window>
-

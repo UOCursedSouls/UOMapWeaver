@@ -26,8 +26,10 @@ public sealed class App : Application
             }
 
             AppSettings.Load();
+            AppStatus.InitFileLogger();
 
             desktop.MainWindow = new MainWindow();
+            desktop.ShutdownRequested += (_, _) => AppStatus.ShutdownFileLogger();
         }
 
         base.OnFrameworkInitializationCompleted();
