@@ -1202,7 +1202,7 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
 
             var overwriteTargets = filesToOverwrite.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
             if (overwriteTargets.Length > 0 &&
-                !await ConfirmOverwriteAsync("Overwrite destination files?", overwriteTargets))
+                !await ViewHelpers.ConfirmOverwriteAsync(this, "Overwrite destination files?", overwriteTargets))
             {
                 StatusText.Text = "Copy cancelled.";
                 AppStatus.SetWarning(StatusText.Text);
@@ -3870,61 +3870,6 @@ public sealed partial class MapCopyView : UserControl, IAppStateView
             resolvedStatics = Path.Combine(directory, staticsName);
         }
     }
-
-    private async Task<bool> ConfirmOverwriteAsync(string title, params string[] paths)
-    {
-        var existing = paths.Where(File.Exists).Select(Path.GetFileName).ToList();
-        if (existing.Count == 0)
-        {
-            return true;
-        }
-
-        var message = "The following files already exist:\n" +
-                      string.Join('\n', existing) +
-                      "\n\nOverwrite them?";
-
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 420,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var text = new TextBlock
-        {
-            Text = message,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap
-        };
-
-        var overwriteButton = new Button { Content = "Overwrite", MinWidth = 90 };
-        var cancelButton = new Button { Content = "Cancel", MinWidth = 90 };
-
-        overwriteButton.Click += (_, _) => dialog.Close(true);
-        cancelButton.Click += (_, _) => dialog.Close(false);
-
-        var buttons = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
-        };
-        buttons.Children.Add(overwriteButton);
-        buttons.Children.Add(cancelButton);
-
-        var layout = new StackPanel { Spacing = 12, Margin = new Avalonia.Thickness(16) };
-        layout.Children.Add(text);
-        layout.Children.Add(buttons);
-
-        dialog.Content = layout;
-        return await dialog.ShowDialog<bool>(GetOwnerWindow());
-    }
-
-    private Window? GetHostWindow() => VisualRoot as Window;
-
-    private Window GetOwnerWindow()
-        => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
 
     private readonly record struct RectInt(int X, int Y, int Width, int Height)
     {
