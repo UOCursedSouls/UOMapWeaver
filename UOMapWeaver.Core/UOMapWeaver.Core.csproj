@@ -10,4 +10,7 @@
   <ItemGroup>
     <Content Include="UOMapWeaver.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="UOMapWeaver.Tests" />
+  </ItemGroup>
 </Project>
