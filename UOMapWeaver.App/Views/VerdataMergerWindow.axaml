@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="UOMapWeaver.App.Views.VerdataMergerView">
+  <ScrollViewer Padding="12">
+    <StackPanel Spacing="12">
+      <TextBlock Text="Merge verdata.mul patches into base MUL files" FontWeight="Bold" FontSize="16" />
+      <TextBlock TextWrapping="Wrap" Foreground="#AAAAAA"
+                 Text="Reads a verdata.mul patch file and applies each entry directly into the corresponding base MUL files (tiledata.mul, Art.mul, Gumpart.mul, map0.mul, etc.), producing unified files that no longer require verdata.mul." />
+
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+        <!-- Verdata File -->
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="verdata.mul" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBox Name="VerdataPathBox" Width="420" TextChanged="OnTextChanged" />
+          <Button Content="Browse" Click="OnBrowseVerdata" />
+          <TextBlock Name="VerdataInfoText" VerticalAlignment="Center" Foreground="#999999" />
+        </StackPanel>
+
+        <!-- MUL Directory -->
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="MUL Folder" VerticalAlignment="Center" Margin="0,6,8,0" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+          <TextBox Name="MulFolderBox" Width="420" TextChanged="OnTextChanged" />
+          <Button Content="Browse" Click="OnBrowseMulFolder" />
+          <TextBlock Name="MulFolderInfoText" VerticalAlignment="Center" Foreground="#999999" />
+        </StackPanel>
+
+        <!-- Options -->
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Options" VerticalAlignment="Center" Margin="0,6,8,0" />
+        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+          <CheckBox Name="BackupCheckBox" Content="Backup files before patching" IsChecked="True" />
+          <CheckBox Name="DeleteVerdataCheckBox" Content="Delete verdata.mul after merge" IsChecked="False" />
+        </StackPanel>
+
+        <!-- Analyze / Merge Buttons -->
+        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+          <Button Name="AnalyzeButton" Content="Analyze" Click="OnAnalyze"
+                  ToolTip.Tip="Read the verdata file and display its patch breakdown without modifying anything" />
+          <Button Name="MergeButton" Content="Merge" Click="OnMerge"
+                  ToolTip.Tip="Apply all verdata patches to the MUL files (creates backups first)" />
+          <TextBlock Name="StatusText" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Analysis Results -->
+        <Border Grid.Row="4" Grid.ColumnSpan="2" Margin="0,12,0,0"
+                BorderBrush="#3A3A3A" BorderThickness="1" Padding="10" CornerRadius="4">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Patch Breakdown" FontWeight="Bold" />
+            <ListBox Name="PatchBreakdownList" Height="180" />
+          </StackPanel>
+        </Border>
+
+        <!-- Warnings -->
+        <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="0,8,0,0"
+                BorderBrush="#3A3A3A" BorderThickness="1" Padding="10" CornerRadius="4">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Warnings" FontWeight="Bold" />
+            <ListBox Name="WarningsList" Height="100" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

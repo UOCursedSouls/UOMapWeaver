@@ -72,6 +72,9 @@
                 <Button Name="GoMapCopy" Content="Map Copy — Copy terrain and statics between maps"
                         HorizontalAlignment="Left"
                         ToolTip.Tip="Copy rectangular regions of terrain and statics from one map to another" />
+                <Button Name="GoVerdataMerger" Content="Verdata Merge — Merge verdata.mul patches into base MUL files"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Apply verdata.mul patches directly into tiledata.mul, Art.mul, etc. to produce unified MUL files" />
               </StackPanel>
             </Border>
 
@@ -126,6 +129,12 @@
           <TextBlock Text="Map Copy" />
         </TabItem.Header>
         <views:MapCopyView />
+      </TabItem>
+      <TabItem ToolTip.Tip="Merge verdata.mul patches into base MUL files to eliminate the verdata dependency">
+        <TabItem.Header>
+          <TextBlock Text="Verdata Merge" />
+        </TabItem.Header>
+        <views:VerdataMergerView />
       </TabItem>
     </TabControl>
     <Grid Name="LogOverlay" Grid.Row="1" IsVisible="False">
