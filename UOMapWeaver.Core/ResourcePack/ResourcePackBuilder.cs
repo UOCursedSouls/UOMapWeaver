@@ -237,6 +237,144 @@ public class ResourcePackBuilder
         }
         progress?.Invoke("Directions", 1, 1);
 
+        // 6b. Hues — palette colors for tinting
+        progress?.Invoke("Hues", 0, 1);
+        if (_animDir != null)
+        {
+            var huesMulPath = Path.Combine(_animDir, "hues.mul");
+            if (File.Exists(huesMulPath))
+            {
+                ExtractHues(huesMulPath, metadataDir);
+                stats.MetadataFiles++;
+                progress?.Invoke("Hues", 1, 1);
+            }
+        }
+
+        // 6c. Other small MUL files — extract as raw binary in metadata/
+        if (_animDir != null)
+        {
+            // Skills
+            var skillsMul = Path.Combine(_animDir, "skills.mul");
+            var skillsIdx = Path.Combine(_animDir, "Skills.idx");
+            if (File.Exists(skillsMul) && File.Exists(skillsIdx))
+            {
+                File.Copy(skillsMul, Path.Combine(metadataDir, "skills.mul"), true);
+                File.Copy(skillsIdx, Path.Combine(metadataDir, "skills.idx"), true);
+                stats.MetadataFiles += 2;
+                progress?.Invoke("Skills", 1, 1);
+            }
+
+            // Speech
+            var speechMul = Path.Combine(_animDir, "speech.mul");
+            if (File.Exists(speechMul))
+            {
+                File.Copy(speechMul, Path.Combine(metadataDir, "speech.mul"), true);
+                stats.MetadataFiles++;
+            }
+
+            // Light
+            var lightMul = Path.Combine(_animDir, "light.mul");
+            var lightIdx = Path.Combine(_animDir, "lightidx.mul");
+            if (File.Exists(lightMul) && File.Exists(lightIdx))
+            {
+                File.Copy(lightMul, Path.Combine(metadataDir, "light.mul"), true);
+                File.Copy(lightIdx, Path.Combine(metadataDir, "lightidx.mul"), true);
+                stats.MetadataFiles += 2;
+            }
+
+            // Fonts
+            var fontsMul = Path.Combine(_animDir, "fonts.mul");
+            if (File.Exists(fontsMul))
+            {
+                var fontsDir = Path.Combine(outputDir, "fonts");
+                Directory.CreateDirectory(fontsDir);
+                File.Copy(fontsMul, Path.Combine(fontsDir, "fonts.mul"), true);
+                stats.MetadataFiles++;
+
+                // Unifonts
+                for (int uf = 0; uf <= 12; uf++)
+                {
+                    var unifontName = uf == 0 ? "unifont.mul" : $"unifont{uf}.mul";
+                    var unifontPath = Path.Combine(_animDir, unifontName);
+                    if (File.Exists(unifontPath))
+                    {
+                        File.Copy(unifontPath, Path.Combine(fontsDir, unifontName), true);
+                        stats.MetadataFiles++;
+                    }
+                }
+                progress?.Invoke("Fonts", 1, 1);
+            }
+
+            // Texmaps
+            var texmapsMul = Path.Combine(_animDir, "texmaps.mul");
+            var texmapsIdx = Path.Combine(_animDir, "texidx.mul");
+            if (File.Exists(texmapsMul) && File.Exists(texmapsIdx))
+            {
+                File.Copy(texmapsMul, Path.Combine(metadataDir, "texmaps.mul"), true);
+                File.Copy(texmapsIdx, Path.Combine(metadataDir, "texidx.mul"), true);
+                stats.MetadataFiles += 2;
+            }
+
+            // AnimData
+            var animdataMul = Path.Combine(_animDir, "animdata.mul");
+            if (File.Exists(animdataMul))
+            {
+                File.Copy(animdataMul, Path.Combine(metadataDir, "animdata.mul"), true);
+                stats.MetadataFiles++;
+            }
+
+            // Multimap
+            var multimapRle = Path.Combine(_animDir, "Multimap.rle");
+            if (File.Exists(multimapRle))
+            {
+                File.Copy(multimapRle, Path.Combine(metadataDir, "Multimap.rle"), true);
+                stats.MetadataFiles++;
+            }
+            for (int f = 0; f <= 5; f++)
+            {
+                var facetMul = Path.Combine(_animDir, $"facet0{f}.mul");
+                if (File.Exists(facetMul))
+                {
+                    File.Copy(facetMul, Path.Combine(metadataDir, $"facet0{f}.mul"), true);
+                    stats.MetadataFiles++;
+                }
+            }
+
+            // MultiCollection
+            var multiUop = Path.Combine(_animDir, "MultiCollection.uop");
+            if (File.Exists(multiUop))
+            {
+                File.Copy(multiUop, Path.Combine(metadataDir, "MultiCollection.uop"), true);
+                stats.MetadataFiles++;
+            }
+
+            // TileArt
+            var tileartUop = Path.Combine(_animDir, "tileart.uop");
+            if (File.Exists(tileartUop))
+            {
+                File.Copy(tileartUop, Path.Combine(metadataDir, "tileart.uop"), true);
+                stats.MetadataFiles++;
+            }
+
+            // String Dictionary
+            var stringDictUop = Path.Combine(_animDir, "string_dictionary.uop");
+            if (File.Exists(stringDictUop))
+            {
+                File.Copy(stringDictUop, Path.Combine(metadataDir, "string_dictionary.uop"), true);
+                stats.MetadataFiles++;
+            }
+
+            // Cliloc
+            var clilocEnu = Path.Combine(_animDir, "Cliloc.enu");
+            if (File.Exists(clilocEnu))
+            {
+                File.Copy(clilocEnu, Path.Combine(metadataDir, "Cliloc.enu"), true);
+                stats.MetadataFiles++;
+            }
+
+            progress?.Invoke("Small files", 1, 1);
+        }
+
         // 7. Gump sprites
         progress?.Invoke("Gumps", 0, 1);
         if (_animDir != null) // _animDir is the client directory
@@ -715,6 +853,55 @@ public class ResourcePackBuilder
             return ((ulong)edi << 32) | eax;
         }
         return ((ulong)esi << 32) | eax;
+    }
+
+    /// <summary>
+    /// Extract hues.mul as binary copy + JSON palette summary.
+    /// hues.mul is needed by the client for color tinting.
+    /// </summary>
+    private static void ExtractHues(string huesMulPath, string metadataDir)
+    {
+        // Copy the raw MUL file — the client needs the exact binary format
+        File.Copy(huesMulPath, Path.Combine(metadataDir, "hues.mul"), true);
+
+        // Also create a JSON summary for reference/debugging
+        var huesData = File.ReadAllBytes(huesMulPath);
+        // Each HuesGroup: 4 byte header + 8 × HuesBlock (88 bytes each) = 708 bytes
+        // Each HuesBlock: 32 × ushort (color table) + ushort start + ushort end + 20 bytes name
+        var groupSize = 708;
+        var groupCount = huesData.Length / groupSize;
+        var huesList = new List<object>();
+
+        for (int g = 0; g < groupCount; g++)
+        {
+            var groupOffset = g * groupSize + 4; // skip 4 byte header
+            for (int h = 0; h < 8; h++)
+            {
+                var hueId = g * 8 + h;
+                var blockOffset = groupOffset + h * 88;
+                if (blockOffset + 88 > huesData.Length) break;
+
+                // Read color table (32 ushort = 64 bytes)
+                var colors = new ushort[32];
+                for (int c = 0; c < 32; c++)
+                    colors[c] = (ushort)(huesData[blockOffset + c * 2] | (huesData[blockOffset + c * 2 + 1] << 8));
+
+                // Read name (20 bytes at offset 68)
+                var nameOffset = blockOffset + 68;
+                var nameEnd = 20;
+                for (int n = 0; n < 20; n++)
+                    if (huesData[nameOffset + n] == 0) { nameEnd = n; break; }
+                var name = System.Text.Encoding.ASCII.GetString(huesData, nameOffset, nameEnd).Trim();
+
+                if (colors[0] != 0 || !string.IsNullOrEmpty(name))
+                {
+                    huesList.Add(new { id = hueId, name, colorCount = colors.Length });
+                }
+            }
+        }
+
+        File.WriteAllText(Path.Combine(metadataDir, "hues_summary.json"),
+            JsonSerializer.Serialize(new { hueCount = groupCount * 8, entries = huesList.Count }, JsonOpts));
     }
 
     private string CategorizeStatic(ushort tileId)
