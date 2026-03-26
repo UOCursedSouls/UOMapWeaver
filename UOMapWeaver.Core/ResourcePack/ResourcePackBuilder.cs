@@ -372,6 +372,23 @@ public class ResourcePackBuilder
                 stats.MetadataFiles++;
             }
 
+            // Definition files (.def) and text config files needed by the client
+            string[] defFiles = [
+                "mobtypes.txt", "Anim1.def", "Anim2.def",
+                "Equipconv.def", "Bodyconv.def", "Body.def", "Corpse.def",
+                "gump.def", "art.def", "Sound.def", "TexTerr.def",
+                "Prof.txt"
+            ];
+            foreach (var defFile in defFiles)
+            {
+                var defPath = Path.Combine(_animDir, defFile);
+                if (File.Exists(defPath))
+                {
+                    File.Copy(defPath, Path.Combine(metadataDir, defFile), true);
+                    stats.MetadataFiles++;
+                }
+            }
+
             progress?.Invoke("Small files", 1, 1);
         }
 
@@ -625,81 +642,13 @@ public class ResourcePackBuilder
     }
 
     /// <summary>
-    /// Extract animations. Due to complexity (5 index files, System.Drawing dependency in UOFiddler),
-    /// we create a metadata catalog of what animations exist rather than extracting all frames.
-    /// Full frame extraction is Phase 4 (future work).
+    /// Extract all animation frames from anim*.mul/idx as individual PNGs.
+    /// No MUL files are copied — the ResourcePack contains only PNG + JSON metadata.
     /// </summary>
     private static int ExtractAnimations(string clientDir, string outputDir,
         Action<string, int, int>? progress)
     {
-        var catalogEntries = new List<object>();
-        int totalFrameEntries = 0;
-
-        // Scan each anim index file to catalog what exists
-        string[] animFiles = ["Anim.idx", "Anim2.idx", "Anim3.idx", "Anim4.idx", "Anim5.idx"];
-
-        foreach (var animFile in animFiles)
-        {
-            var idxPath = Path.Combine(clientDir, animFile);
-            if (!File.Exists(idxPath)) continue;
-
-            var idxData = File.ReadAllBytes(idxPath);
-            var entryCount = idxData.Length / 12;
-            var validEntries = 0;
-
-            for (int i = 0; i < entryCount; i++)
-            {
-                var lookup = BitConverter.ToInt32(idxData, i * 12);
-                var length = BitConverter.ToInt32(idxData, i * 12 + 4);
-
-                if (lookup >= 0 && length > 0)
-                    validEntries++;
-            }
-
-            totalFrameEntries += validEntries;
-            catalogEntries.Add(new
-            {
-                file = animFile,
-                totalEntries = entryCount,
-                validEntries,
-                mulFile = animFile.Replace(".idx", ".mul")
-            });
-
-            progress?.Invoke($"Cataloging {animFile}", validEntries, entryCount);
-        }
-
-        // Also check UOP animation files
-        string[] uopFiles = ["AnimationFrame1.uop", "AnimationFrame2.uop",
-            "AnimationFrame3.uop", "AnimationFrame4.uop", "AnimationFrame6.uop"];
-
-        foreach (var uopFile in uopFiles)
-        {
-            var uopPath = Path.Combine(clientDir, uopFile);
-            if (!File.Exists(uopPath))
-                continue;
-
-            var fi = new FileInfo(uopPath);
-            catalogEntries.Add(new
-            {
-                file = uopFile,
-                sizeBytes = fi.Length,
-                sizeMB = $"{fi.Length / 1024.0 / 1024.0:F1} MB",
-                status = "NOT_EXTRACTED — requires frame-by-frame UOP parser"
-            });
-        }
-
-        // Write catalog
-        var catalog = new
-        {
-            status = "CATALOG_ONLY — full frame extraction is Phase 4",
-            totalFrameEntries,
-            files = catalogEntries
-        };
-
-        var json = JsonSerializer.Serialize(catalog, JsonOpts);
-        File.WriteAllText(Path.Combine(outputDir, "animation_catalog.json"), json);
-
-        return totalFrameEntries;
+        return AnimationExtractor.ExtractAll(clientDir, outputDir, progress);
     }
 
     private static int ExtractSoundsFromUop(string uopPath, string outputDir,
