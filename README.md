@@ -28,6 +28,7 @@ managing color palettes, and working with the newer `.uop` archive format.
 - [Tile Color Map (Color Table Builder)](#tile-color-map-color-table-builder)
 - [Map Copy (Region Transfer)](#map-copy-region-transfer)
 - [UOP Tools (Archive Pack / Extract)](#uop-tools-archive-pack--extract)
+- [Resource Pack Builder](#resource-pack-builder)
 - [Data Folder Reference](#data-folder-reference)
 - [Binary Format Reference](#binary-format-reference)
 - [FAQ](#faq)
@@ -676,6 +677,45 @@ conversions, previews, and tooling). No pressure — every contribution helps.
 ### ☕ Support my work
 
 If you find this project useful, you can support my development by buying me a coffee via crypto:
+
+## Resource Pack Builder
+
+Builds a **Minecraft-style Resource Pack** from UO Legacy client files. The Resource Pack contains all the assets that MondainGate (the custom UO client) needs to run **without any MUL/UOP files**.
+
+### What It Extracts
+
+| Asset | Source | Output | Count |
+|-------|--------|--------|-------|
+| Land tile sprites | artLegacyMUL.uop | `land/*.png` | ~4,200 |
+| Static item sprites | artLegacyMUL.uop | `statics/{category}/*.png` | ~35,700 |
+| Gump sprites (UI) | gumpartLegacyMUL.uop | `gumps/*.png` | ~5,400 |
+| Sound effects | soundLegacyMUL.uop | `sounds/*.wav` | ~1,600 |
+| Music | Music/Digital/*.mp3 | `music/*.mp3` | ~90 |
+| Tile metadata | tiledata.mul | `metadata/tiledata_*.json` | 2 files |
+| Radar colors | radarcol.mul | `metadata/radarcol.json` | 1 file |
+| Art sprite index | Generated | `metadata/art_index.json` | 1 file |
+| Gump sprite index | Generated | `metadata/gump_index.json` | 1 file |
+| Wall directions | ModernUO Components | `metadata/directions.json` | 272 mappings |
+
+### How to Use
+
+1. Open UOMapWeaver and click the **Resource Pack** tab
+2. Select the **UO Client Folder** containing the legacy MUL/UOP files
+3. Optionally select the **ModernUO Components** folder for wall/door directional mappings
+4. Select an **Output Folder** where the ResourcePack will be created
+5. Click **Build Resource Pack**
+
+The resulting folder (~500 MB) contains everything MondainGate needs. Set `resource_pack_path` in MondainGate's settings.json to point to this folder.
+
+### Technical Details
+
+- **UOP Conversion**: Converts UOP archives (artLegacyMUL.uop, gumpartLegacyMUL.uop, soundLegacyMUL.uop) to MUL format internally, then extracts sprites
+- **Mythic/BWT Decompression**: Handles gumps compressed with Mythic's BWT+MTF encoding (compression flag 3)
+- **PNG with Transparency**: All sprites are saved as 32-bit RGBA PNG with proper alpha transparency
+- **Metadata JSON**: Replaces binary tiledata.mul and radarcol.mul with human-readable JSON
+- **art_index.json**: Contains width/height/length for every sprite — allows MondainGate to populate entry metadata without loading MUL files
+
+---
 
 * **Solana (SOL):** `H4amfKB18QUUwdHxNgCPLbzWxyXCwVnguhGkj8fcTocW`
 <!-- * **USDT (Solana/SPL):** `YOUR_SOLANA_ADDRESS_HERE`  -->
