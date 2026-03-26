@@ -75,6 +75,9 @@
                 <Button Name="GoVerdataMerger" Content="Verdata Merge — Merge verdata.mul patches into base MUL files"
                         HorizontalAlignment="Left"
                         ToolTip.Tip="Apply verdata.mul patches directly into tiledata.mul, Art.mul, etc. to produce unified MUL files" />
+                <Button Name="GoResourcePack" Content="Resource Pack — Build Minecraft-style pack from UO client files"
+                        HorizontalAlignment="Left"
+                        ToolTip.Tip="Extract all sprites, sounds, music, and metadata into a ResourcePack for MondainGate" />
               </StackPanel>
             </Border>
 
@@ -135,6 +138,12 @@
           <TextBlock Text="Verdata Merge" />
         </TabItem.Header>
         <views:VerdataMergerView />
+      </TabItem>
+      <TabItem ToolTip.Tip="Build a Minecraft-style Resource Pack from UO client files for MondainGate">
+        <TabItem.Header>
+          <TextBlock Text="Resource Pack" />
+        </TabItem.Header>
+        <views:ResourcePackView />
       </TabItem>
     </TabControl>
     <Grid Name="LogOverlay" Grid.Row="1" IsVisible="False">

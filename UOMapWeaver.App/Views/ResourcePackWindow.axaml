@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="UOMapWeaver.App.Views.ResourcePackView">
+  <ScrollViewer Padding="16">
+    <StackPanel Spacing="16">
+      <TextBlock Text="Resource Pack Builder" FontSize="20" FontWeight="Bold" />
+      <TextBlock TextWrapping="Wrap" Foreground="#CCCCCC"
+                 Text="Build a Minecraft-style Resource Pack from UO client files. The Resource Pack contains all sprites, sounds, music, and metadata needed by MondainGate — no MUL files required." />
+
+      <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Input: UO Client Folder" FontWeight="Bold" />
+          <TextBlock TextWrapping="Wrap" Foreground="#999999"
+                     Text="Select the folder containing UO Legacy files (artLegacyMUL.uop, tiledata.mul, radarcol.mul, etc.)" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Name="UoFolderBox" Width="500" Watermark="C:\Program Files (x86)\Electronic Arts\Ultima Online Classic" />
+            <Button Content="Browse..." Click="OnBrowseUoFolder" />
+          </StackPanel>
+          <TextBlock Name="UoFolderStatus" Foreground="#999999" Text="" />
+        </StackPanel>
+      </Border>
+
+      <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+        <StackPanel Spacing="8">
+          <TextBlock Text="ModernUO Components (optional)" FontWeight="Bold" />
+          <TextBlock TextWrapping="Wrap" Foreground="#999999"
+                     Text="Path to ModernUO Distribution/Data/Components/ for wall/door directional mappings (100% confidence)" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Name="ComponentsFolderBox" Width="500" Watermark="E:\GitHub\ModernUO\Distribution\Data\Components" />
+            <Button Content="Browse..." Click="OnBrowseComponentsFolder" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Output: Resource Pack Folder" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Name="OutputFolderBox" Width="500" Watermark="E:\GitHub\MondainGate\bin\dist\ResourcePack" />
+            <Button Content="Browse..." Click="OnBrowseOutputFolder" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+        <StackPanel Spacing="8">
+          <TextBlock Text="What to Extract" FontWeight="Bold" />
+          <WrapPanel>
+            <CheckBox Name="ExtractArt" Content="Art Sprites (land + static)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractGumps" Content="Gump Sprites (UI)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractSounds" Content="Sound Effects (WAV)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractMusic" Content="Music (MP3)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractTileData" Content="TileData (JSON)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractRadarCol" Content="Radar Colors (JSON)" IsChecked="True" Margin="0,0,16,0" />
+            <CheckBox Name="ExtractDirections" Content="Wall Directions (JSON)" IsChecked="True" Margin="0,0,16,0" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Button Name="BuildButton" Content="Build Resource Pack" Click="OnBuild" FontSize="16" Padding="16,8" />
+        <Button Name="OpenOutputButton" Content="Open Output Folder" Click="OnOpenOutput" />
+        <TextBlock Name="BuildStatus" VerticalAlignment="Center" FontSize="14" />
+      </StackPanel>
+
+      <ProgressBar Name="BuildProgress" Height="10" Minimum="0" Maximum="100" IsVisible="False" />
+
+      <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Build Log" FontWeight="Bold" />
+          <ListBox Name="BuildLogList" Height="200" Background="#111111">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="2" />
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="12" />
+              </Style>
+            </ListBox.Styles>
+          </ListBox>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
