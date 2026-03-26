@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         GoBlankBmp.Click += (_, _) => MainTabControl.SelectedIndex = 6;
         GoMapCopy.Click += (_, _) => MainTabControl.SelectedIndex = 7;
         GoVerdataMerger.Click += (_, _) => MainTabControl.SelectedIndex = 8;
+        GoResourcePack.Click += (_, _) => MainTabControl.SelectedIndex = 9;
 
         PopulateWelcomeInfo();
 
