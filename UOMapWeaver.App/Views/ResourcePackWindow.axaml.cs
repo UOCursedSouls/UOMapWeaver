@@ -104,6 +104,9 @@ public partial class ResourcePackView : UserControl
             return;
         }
 
+        // Read all UI values on the UI thread BEFORE Task.Run
+        var componentsDir = string.IsNullOrEmpty(ComponentsFolderBox.Text) ? null : ComponentsFolderBox.Text;
+
         BuildButton.IsEnabled = false;
         BuildProgress.IsVisible = true;
         BuildLogList.Items.Clear();
@@ -121,14 +124,13 @@ public partial class ResourcePackView : UserControl
         {
             await Task.Run(() =>
             {
-                // Find file paths
+                // Find file paths (uoPath and outputPath already captured from UI thread)
                 var artIdxPath = Path.Combine(uoPath, "artidx.mul");
                 var artMulPath = File.Exists(Path.Combine(uoPath, "artLegacyMUL.uop"))
                     ? Path.Combine(uoPath, "artLegacyMUL.uop")
                     : Path.Combine(uoPath, "art.mul");
                 var tileDataPath = Path.Combine(uoPath, "tiledata.mul");
                 var radarColPath = Path.Combine(uoPath, "radarcol.mul");
-                var componentsDir = string.IsNullOrEmpty(ComponentsFolderBox.Text) ? null : ComponentsFolderBox.Text;
                 var musicDir = Path.Combine(uoPath, "Music", "Digital");
                 if (!Directory.Exists(musicDir)) musicDir = null;
                 var soundPath = File.Exists(Path.Combine(uoPath, "soundLegacyMUL.uop"))
