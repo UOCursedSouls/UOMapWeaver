@@ -68,7 +68,7 @@
       <Border BorderBrush="#3A3A3A" BorderThickness="1" Padding="12" CornerRadius="4">
         <StackPanel Spacing="4">
           <TextBlock Text="Build Log" FontWeight="Bold" />
-          <ListBox Name="BuildLogList" Height="200" Background="#111111">
+          <ListBox Name="BuildLogList" MinHeight="250" MaxHeight="600" Background="#111111">
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="2" />
