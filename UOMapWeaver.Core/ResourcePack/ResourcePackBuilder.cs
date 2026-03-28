@@ -165,14 +165,20 @@ public class ResourcePackBuilder
             if (td == null) continue;
             if (string.IsNullOrWhiteSpace(td.Name) && td.Flags == TileFlag.None && td.Height == 0)
                 continue; // Skip empty entries
-            itemTiledata.Add(new
+            var entry = new Dictionary<string, object>
             {
-                id = td.TileId,
-                name = td.Name,
-                flags = td.Flags.ToString(),
-                height = td.Height,
-                weight = td.Weight
-            });
+                ["id"] = td.TileId,
+                ["name"] = td.Name,
+                ["flags"] = td.Flags.ToString(),
+                ["height"] = td.Height,
+                ["weight"] = td.Weight,
+            };
+            if (td.Layer != 0) entry["layer"] = td.Layer;
+            if (td.Quantity != 0) entry["count"] = td.Quantity;
+            if (td.AnimId != 0) entry["animId"] = td.AnimId;
+            if (td.Hue != 0) entry["hue"] = td.Hue;
+            if (td.LightIndex != 0) entry["lightIndex"] = td.LightIndex;
+            itemTiledata.Add(entry);
         }
         File.WriteAllText(Path.Combine(metadataDir, "tiledata_items.json"),
             JsonSerializer.Serialize(itemTiledata, JsonOpts));

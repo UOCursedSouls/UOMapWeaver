@@ -43,7 +43,9 @@ public record LandTileData(ushort TileId, TileFlag Flags, ushort TextureId, stri
 /// <summary>
 /// Data for a single item/static tile from tiledata.mul.
 /// </summary>
-public record ItemTileData(ushort TileId, TileFlag Flags, byte Weight, byte Height, string Name);
+public record ItemTileData(
+    ushort TileId, TileFlag Flags, byte Weight, byte Height, string Name,
+    byte Layer, byte Quantity, ushort AnimId, byte Hue, ushort LightIndex);
 
 /// <summary>
 /// A set of wall tile IDs that form a visual group (south, east, corner, post, optional doors).
@@ -172,7 +174,8 @@ public class TileDataReader
 
                 if (tileId < ItemTiles.Length)
                 {
-                    ItemTiles[tileId] = new ItemTileData(tileId, flags, weight, height, name);
+                    ItemTiles[tileId] = new ItemTileData(tileId, flags, weight, height, name,
+                        quality, quantity, animId, hue, unknown4);
                 }
             }
         }
