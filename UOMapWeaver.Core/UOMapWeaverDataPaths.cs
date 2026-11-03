@@ -12,14 +12,26 @@ public static class UOMapWeaverDataPaths
 
     private static string GetExecutableDirectory()
     {
+        var baseDirectory = AppContext.BaseDirectory;
+
         try
         {
             var processPath = Environment.ProcessPath;
             if (!string.IsNullOrWhiteSpace(processPath))
             {
+                if (IsDotnetHost(processPath))
+                {
+                    return baseDirectory;
+                }
+
                 var directory = Path.GetDirectoryName(processPath);
                 if (!string.IsNullOrWhiteSpace(directory))
                 {
+                    if (IsTempShadowCopy(baseDirectory))
+                    {
+                        return directory;
+                    }
+
                     return directory;
                 }
             }
@@ -28,9 +40,19 @@ public static class UOMapWeaverDataPaths
             var mainModulePath = process.MainModule?.FileName;
             if (!string.IsNullOrWhiteSpace(mainModulePath))
             {
+                if (IsDotnetHost(mainModulePath))
+                {
+                    return baseDirectory;
+                }
+
                 var directory = Path.GetDirectoryName(mainModulePath);
                 if (!string.IsNullOrWhiteSpace(directory))
                 {
+                    if (IsTempShadowCopy(baseDirectory))
+                    {
+                        return directory;
+                    }
+
                     return directory;
                 }
             }
@@ -40,7 +62,20 @@ public static class UOMapWeaverDataPaths
             // Ignore process path failures and fall back.
         }
 
-        return AppContext.BaseDirectory;
+        return baseDirectory;
+    }
+
+    private static bool IsDotnetHost(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        return fileName.Equals("dotnet", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTempShadowCopy(string baseDirectory)
+    {
+        return baseDirectory.Contains($"{Path.DirectorySeparatorChar}.net{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+               baseDirectory.Contains($"{Path.DirectorySeparatorChar}Temp{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
     public static string SystemRoot => Path.Combine(DataRoot, "System");
