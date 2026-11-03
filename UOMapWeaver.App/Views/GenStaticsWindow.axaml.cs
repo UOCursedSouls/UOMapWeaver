@@ -157,7 +157,7 @@ public sealed partial class GenStaticsView : UserControl, IAppStateView
             var staidxPath = Path.Combine(outputFolder, staidxName);
             var layout = GetSelectedLayout();
 
-            if (!await ConfirmOverwriteAsync("Overwrite statics files?", staidxPath, staticsPath))
+            if (!await ViewHelpers.ConfirmOverwriteAsync(this, "Overwrite statics files?", staidxPath, staticsPath))
             {
                 StatusText.Text = "Generation cancelled.";
                 StatusTextPreview.Text = StatusText.Text;
@@ -330,69 +330,6 @@ public sealed partial class GenStaticsView : UserControl, IAppStateView
         }
     }
 
-    private async Task<bool> ConfirmOverwriteAsync(string title, params string[] paths)
-    {
-        var existing = new List<string>();
-        foreach (var path in paths)
-        {
-            if (File.Exists(path))
-            {
-                existing.Add(path);
-            }
-        }
-
-        if (existing.Count == 0)
-        {
-            return true;
-        }
-
-        var message = "The following files already exist:\n" +
-                      string.Join('\n', existing.Select(Path.GetFileName)) +
-                      "\n\nOverwrite them?";
-
-        var dialog = BuildConfirmDialog(title, message);
-        return await dialog.ShowDialog<bool>(GetOwnerWindow());
-    }
-
-    private static Window BuildConfirmDialog(string title, string message)
-    {
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 420,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var text = new TextBlock
-        {
-            Text = message,
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var overwriteButton = new Button { Content = "Overwrite", MinWidth = 90 };
-        var cancelButton = new Button { Content = "Cancel", MinWidth = 90 };
-
-        overwriteButton.Click += (_, _) => dialog.Close(true);
-        cancelButton.Click += (_, _) => dialog.Close(false);
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        buttons.Children.Add(overwriteButton);
-        buttons.Children.Add(cancelButton);
-
-        var layout = new StackPanel { Spacing = 12, Margin = new Thickness(16) };
-        layout.Children.Add(text);
-        layout.Children.Add(buttons);
-
-        dialog.Content = layout;
-        return dialog;
-    }
 
     private void LoadLayouts()
     {
@@ -680,10 +617,6 @@ public sealed partial class GenStaticsView : UserControl, IAppStateView
         }
     }
 
-    private Window? GetHostWindow() => VisualRoot as Window;
-
-    private Window GetOwnerWindow()
-        => GetHostWindow() ?? throw new InvalidOperationException("Host window not available.");
 
     public void PersistState()
     {

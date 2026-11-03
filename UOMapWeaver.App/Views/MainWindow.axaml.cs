@@ -41,6 +41,21 @@ public sealed partial class MainWindow : Window
         ResetStateButton.Click += (_, _) => ResetUiState();
         CancelButton.Click += (_, _) => AppStatus.RequestCancel();
         DataReadmeButton.Click += (_, _) => OpenDataReadme();
+        OpenLogFileButton.Click += (_, _) => OpenLogFile();
+        OpenLogFolderButton.Click += (_, _) => OpenLogFolder();
+
+        // Welcome tab navigation buttons.
+        GoTileColors.Click += (_, _) => MainTabControl.SelectedIndex = 1;
+        GoUopTools.Click += (_, _) => MainTabControl.SelectedIndex = 2;
+        GoMulToBmp.Click += (_, _) => MainTabControl.SelectedIndex = 3;
+        GoBmpToMul.Click += (_, _) => MainTabControl.SelectedIndex = 4;
+        GoGenStatics.Click += (_, _) => MainTabControl.SelectedIndex = 5;
+        GoBlankBmp.Click += (_, _) => MainTabControl.SelectedIndex = 6;
+        GoMapCopy.Click += (_, _) => MainTabControl.SelectedIndex = 7;
+        GoVerdataMerger.Click += (_, _) => MainTabControl.SelectedIndex = 8;
+        GoResourcePack.Click += (_, _) => MainTabControl.SelectedIndex = 9;
+
+        PopulateWelcomeInfo();
 
         LogList.ItemsSource = _logEntries;
         LogList.KeyDown += OnLogListKeyDown;
@@ -200,6 +215,39 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void PopulateWelcomeInfo()
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var versionText = version is not null ? $"v{version.Major}.{version.Minor}.{version.Build}" : "";
+        WelcomeVersionText.Text = $"UOMapWeaver {versionText}".TrimEnd();
+
+        // Show recently used paths from saved settings.
+        var pathKeys = new[]
+        {
+            ("Source Map", "MapCopy.SourceMapPath"),
+            ("Dest Map", "MapCopy.DestMapPath"),
+            ("Output Folder", "BmpToMul.OutputFolder"),
+            ("Terrain BMP", "BmpToMul.TerrainBmpPath"),
+            ("Altitude BMP", "BmpToMul.AltitudeBmpPath"),
+            ("MUL Source", "MulToBmp.MapMulPath"),
+        };
+
+        var recentLines = new System.Collections.Generic.List<string>();
+        foreach (var (label, key) in pathKeys)
+        {
+            var value = AppSettings.GetString(key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                recentLines.Add($"{label}: {value}");
+            }
+        }
+
+        if (recentLines.Count > 0)
+        {
+            WelcomeRecentPathsText.Text = string.Join(Environment.NewLine, recentLines);
+        }
+    }
+
     private void OpenDataReadme()
     {
         try
@@ -227,6 +275,76 @@ public sealed partial class MainWindow : Window
         {
             AppStatus.SetWarning($"Unable to open data README: {ex.Message}");
         }
+    }
+
+    private void OpenLogFile()
+    {
+        try
+        {
+            var logPath = AppStatus.LogFilePath;
+            if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+            {
+                AppStatus.SetWarning("No log file available for this session.");
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetWarning($"Unable to open log file: {ex.Message}");
+        }
+    }
+
+    private void OpenLogFolder()
+    {
+        try
+        {
+            var logDir = AppStatus.LogDirectory;
+            if (!Directory.Exists(logDir))
+            {
+                Directory.CreateDirectory(logDir);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logDir,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetWarning($"Unable to open log folder: {ex.Message}");
+        }
+    }
+
+    private async void OnExportLog(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var path = await ViewHelpers.PickSaveFileAsync(this, "Export Log", "log");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            AppStatus.ExportLog(path);
+            AppStatus.SetSuccess($"Log exported to {Path.GetFileName(path)}.");
+        }
+        catch (Exception ex)
+        {
+            AppStatus.SetError($"Export failed: {ex.Message}");
+        }
+    }
+
+    private void OnClearLog(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        AppStatus.ClearLog();
+        AppStatus.SetInfo("Log cleared.");
     }
 
     private void ResetUiState()

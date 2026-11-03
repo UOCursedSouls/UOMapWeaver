@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using UOMapWeaver.Core.Map;
 using UOMapWeaver.Core.TileColors;
 
@@ -212,6 +214,88 @@ internal static class ViewHelpers
 
     private static IStorageProvider? GetStorageProvider(Visual visual)
         => TopLevel.GetTopLevel(visual)?.StorageProvider;
+
+    /// <summary>
+    /// Gets the host Window for a UserControl by walking the visual tree.
+    /// </summary>
+    internal static Window? GetHostWindow(Visual visual) => visual.GetVisualRoot() as Window;
+
+    /// <summary>
+    /// Gets the owner Window, throwing if not available.
+    /// </summary>
+    internal static Window GetOwnerWindow(Visual visual)
+        => GetHostWindow(visual) ?? throw new InvalidOperationException("Host window not available.");
+
+    /// <summary>
+    /// Builds a confirmation dialog with Overwrite/Cancel buttons.
+    /// </summary>
+    internal static Window BuildConfirmDialog(string title, string message)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var text = new TextBlock
+        {
+            Text = message,
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var overwriteButton = new Button { Content = "Overwrite", MinWidth = 90 };
+        var cancelButton = new Button { Content = "Cancel", MinWidth = 90 };
+
+        overwriteButton.Click += (_, _) => dialog.Close(true);
+        cancelButton.Click += (_, _) => dialog.Close(false);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        buttons.Children.Add(overwriteButton);
+        buttons.Children.Add(cancelButton);
+
+        var layout = new StackPanel { Spacing = 12, Margin = new Thickness(16) };
+        layout.Children.Add(text);
+        layout.Children.Add(buttons);
+
+        dialog.Content = layout;
+        return dialog;
+    }
+
+    /// <summary>
+    /// Shows a confirmation dialog if any of the specified paths already exist.
+    /// Returns true if no files exist or if the user confirms overwrite.
+    /// </summary>
+    internal static async Task<bool> ConfirmOverwriteAsync(Visual visual, string title, params string[] paths)
+    {
+        var existing = new List<string>();
+        foreach (var path in paths)
+        {
+            if (File.Exists(path))
+            {
+                existing.Add(path);
+            }
+        }
+
+        if (existing.Count == 0)
+        {
+            return true;
+        }
+
+        var message = "The following files already exist:\n" +
+                      string.Join('\n', existing.Select(Path.GetFileName)) +
+                      "\n\nOverwrite them?";
+
+        var dialog = BuildConfirmDialog(title, message);
+        return await dialog.ShowDialog<bool>(GetOwnerWindow(visual));
+    }
 
     private static FilePickerFileType CreateFileTypeFilter(string name, IEnumerable<string> extensions)
     {

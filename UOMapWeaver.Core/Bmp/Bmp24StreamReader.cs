@@ -82,7 +82,15 @@ public sealed class Bmp24StreamReader : IDisposable
         var offset = _pixelOffset + (long)fileRow * _rowSize;
         _stream.Seek(offset, SeekOrigin.Begin);
         _stream.ReadExactly(_rowBuffer, 0, _rowBuffer.Length);
-        _rowBuffer.AsSpan(0, expectedLength).CopyTo(destination);
+
+        // BMP stores pixels in BGR order — swap to RGB for the caller
+        for (var x = 0; x < _width; x++)
+        {
+            var i = x * 3;
+            destination[i] = _rowBuffer[i + 2];     // R ← file[2]
+            destination[i + 1] = _rowBuffer[i + 1]; // G ← file[1]
+            destination[i + 2] = _rowBuffer[i];     // B ← file[0]
+        }
     }
 
     public void Dispose()
