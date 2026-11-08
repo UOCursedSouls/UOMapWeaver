@@ -8,7 +8,8 @@ namespace UOMapWeaver.Core.WorldFormats;
 public sealed class WorldAreaEditor : IDisposable
 {
     private readonly IWorldAreaStore _store;
-    private readonly List<WorldArea> _areas;
+    // Replaced as a whole after a save, never cleared in place: a reader that took the reference keeps a consistent list.
+    private volatile List<WorldArea> _areas;
 
     private WorldAreaEditor(IWorldAreaStore store, int worldWidth, int worldHeight)
     {
@@ -160,8 +161,7 @@ public sealed class WorldAreaEditor : IDisposable
     {
         _store.WriteAll(_areas.ToList());
         // Ids of new areas are assigned by the plugin: reload so a second save does not create duplicates.
-        _areas.Clear();
-        _areas.AddRange(_store.ReadAll());
+        _areas = _store.ReadAll().ToList();
         Dirty = false;
     }
 

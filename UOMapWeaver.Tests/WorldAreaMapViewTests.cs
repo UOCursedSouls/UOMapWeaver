@@ -175,4 +175,44 @@ public sealed class WorldAreaMapViewTests
         Assert.True(view.Stride(512, 512) > 1);
         Assert.True(reader.Reads.Count <= 256);
     }
+
+    [Fact]
+    public async Task WorldAreaMapView_SaveReloadWhileIterating_SnapshotStaysConsistent()
+    {
+        var plugin = new MemoryPlugin();
+        using var view = NewView(plugin);
+        var snapshot = view.Editor.Areas;
+        var stop = false;
+        Exception? failure = null;
+        var reader = Task.Run(() =>
+        {
+            try
+            {
+                while (!Volatile.Read(ref stop))
+                {
+                    var areas = view.Editor.Areas; // what a render does: one reference, then index
+                    for (var i = 0; i < areas.Count; i++)
+                    {
+                        _ = areas[i].Rects.Count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        });
+
+        for (var n = 0; n < 200; n++)
+        {
+            await view.Editor.SaveAsync();
+        }
+
+        Volatile.Write(ref stop, true);
+        await reader;
+
+        Assert.Null(failure);
+        Assert.Equal(2, snapshot.Count); // the list taken before the saves was never cleared
+        Assert.NotSame(snapshot, view.Editor.Areas);
+    }
 }

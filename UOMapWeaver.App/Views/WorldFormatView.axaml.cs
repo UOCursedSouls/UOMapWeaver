@@ -139,17 +139,22 @@ public sealed partial class WorldFormatView : UserControl
             AreaKindComboBox.SelectedIndex = editor?.Kinds.Count > 0 ? 0 : -1;
             if (editor is not null)
             {
-                IWorldReader? reader = null;
-                try
+                // Opening the block store and reading the colour JSON can be slow: off the UI thread.
+                var (reader, colors) = await Task.Run(() =>
                 {
-                    reader = plugin.OpenWorld(world);
-                }
-                catch (Exception)
-                {
-                    // No readable blocks: the areas are drawn on a blank background.
-                }
+                    IWorldReader? r = null;
+                    try
+                    {
+                        r = plugin.OpenWorld(world);
+                    }
+                    catch (Exception)
+                    {
+                        // No readable blocks: the areas are drawn on a blank background.
+                    }
 
-                _mapView = new WorldAreaMapView(editor, reader, LandColors());
+                    return (r, LandColors());
+                });
+                _mapView = new WorldAreaMapView(editor, reader, colors);
             }
 
             AreaCanvasControl.SetView(_mapView);
@@ -196,20 +201,9 @@ public sealed partial class WorldFormatView : UserControl
         }
 
         SetAreaEditing(false);
-        Task save;
         try
         {
-            save = editor.SaveAsync();
-        }
-        catch (Exception ex)
-        {
-            Report(AreasStatusText, $"Save error: {ex.Message}", AppStatusSeverity.Error);
-            return;
-        }
-
-        try
-        {
-            await save;
+            await editor.SaveAsync();
             Report(AreasStatusText, $"Saved {editor.Areas.Count} areas.", AppStatusSeverity.Success);
             AreaCanvasControl.SelectedIndex = -1;
             RefreshAreaList();

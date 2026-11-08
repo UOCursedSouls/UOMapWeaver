@@ -201,7 +201,11 @@ public sealed class WorldAreaMapView : IDisposable
 
     public void Dispose()
     {
-        _reader?.Dispose();
+        lock (_lock)
+        {
+            _reader?.Dispose();
+        }
+
         Editor.Dispose();
     }
 }

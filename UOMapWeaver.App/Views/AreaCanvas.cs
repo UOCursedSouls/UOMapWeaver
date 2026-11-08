@@ -104,7 +104,7 @@ public sealed class AreaCanvas : Control
         int x0 = 0, y0 = 0, x1 = _editor?.WorldWidth ?? 0, y1 = _editor?.WorldHeight ?? 0;
         if (_editor is not null)
         {
-            foreach (var r in _editor.Areas.SelectMany(a => a.Rects))
+            foreach (var r in _editor.Areas.ToList().SelectMany(a => a.Rects))
             {
                 (x0, y0, x1, y1) = (Math.Min(x0, r.X), Math.Min(y0, r.Y), Math.Max(x1, r.X + r.Width), Math.Max(y1, r.Y + r.Height));
             }
@@ -139,11 +139,12 @@ public sealed class AreaCanvas : Control
         }
 
         DrawLand(ctx);
-        for (var i = 0; i < _editor.Areas.Count; i++)
+        var areas = _editor.Areas; // one reference: a save may swap the list while this renders
+        for (var i = 0; i < areas.Count; i++)
         {
             var sel = i == SelectedIndex;
             var color = sel ? Colors.Orange : Colors.DeepSkyBlue;
-            foreach (var r in _editor.Areas[i].Rects)
+            foreach (var r in areas[i].Rects)
             {
                 ctx.DrawRectangle(new SolidColorBrush(color, 0.25), new Pen(new SolidColorBrush(color), sel ? 2 : 1), ToView(r));
             }
@@ -200,7 +201,22 @@ public sealed class AreaCanvas : Control
         }
     }
 
-    private static IBrush Brush(RgbColor c) => new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+    private readonly System.Collections.Generic.Dictionary<int, IBrush> _brushes = [];
+
+    private IBrush Brush(RgbColor c)
+    {
+        if (!_brushes.TryGetValue(c.Key, out var b))
+        {
+            if (_brushes.Count > 4096)
+            {
+                _brushes.Clear();
+            }
+
+            _brushes[c.Key] = b = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B)).ToImmutable();
+        }
+
+        return b;
+    }
 
     private (int area, int rect) HitTest(Point world)
     {
@@ -209,9 +225,10 @@ public sealed class AreaCanvas : Control
             return (-1, -1);
         }
 
-        for (var i = _editor.Areas.Count - 1; i >= 0; i--)
+        var areas = _editor.Areas;
+        for (var i = areas.Count - 1; i >= 0; i--)
         {
-            var rects = _editor.Areas[i].Rects;
+            var rects = areas[i].Rects;
             for (var j = 0; j < rects.Count; j++)
             {
                 var r = rects[j];
