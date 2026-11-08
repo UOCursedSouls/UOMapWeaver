@@ -43,6 +43,11 @@ public static class WorldFormatConversion
             throw new ArgumentException("The area is outside the map.");
         }
 
+        if (string.IsNullOrWhiteSpace(staIdxPath) != string.IsNullOrWhiteSpace(staticsPath))
+        {
+            throw new ArgumentException("Give both staidx and statics, or neither: one alone would silently drop the statics.");
+        }
+
         string? tempFolder = null;
         try
         {
@@ -97,7 +102,7 @@ public static class WorldFormatConversion
 
     /// <summary>
     /// Exports a world to map, staidx and statics MUL. A bounded world exports whole; for an unbounded one
-    /// (0 x 0) <paramref name="areaBlocks"/> gives the rectangle (block x, y, width, height). Missing blocks become water.
+    /// (0 x 0) <paramref name="areaBlocks"/> gives the rectangle (block x, y, width, height). Missing blocks become water. Existing output files are refused unless <paramref name="overwrite"/>.
     /// Returns the size written, in tiles.
     /// </summary>
     public static (int Width, int Height) ExportWorld(
@@ -107,9 +112,21 @@ public static class WorldFormatConversion
         string staIdxPath,
         string staticsPath,
         (int X, int Y, int Width, int Height)? areaBlocks = null,
-        IProgress<int>? progress = null)
+        IProgress<int>? progress = null,
+        bool overwrite = false)
     {
         RequireCapability(plugin, WorldFormatCapabilities.Export);
+        if (!overwrite)
+        {
+            foreach (var path in new[] { mapPath, staIdxPath, staticsPath })
+            {
+                if (File.Exists(path))
+                {
+                    throw new IOException($"'{path}' already exists; refusing to overwrite it.");
+                }
+            }
+        }
+
         using var reader = plugin.OpenWorld(worldFolder);
         var info = reader.Info;
         var (ox, oy, bw, bh) = areaBlocks ?? (0, 0, info.WidthInBlocks, info.HeightInBlocks);
@@ -121,6 +138,11 @@ public static class WorldFormatConversion
         }
 
         const int s = WorldBlock.Size;
+        if ((long)bw * s * bh * s > int.MaxValue / 2)
+        {
+            throw new ArgumentException("The export area is too large for one map file.");
+        }
+
         int width = bw * s, height = bh * s;
         var land = new LandTile[width * height];
         var statics = new List<StaticMulEntry>[bw * bh];

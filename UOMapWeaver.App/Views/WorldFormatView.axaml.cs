@@ -57,11 +57,22 @@ public sealed partial class WorldFormatView : UserControl
             return;
         }
 
+        string? staIdx = ImportStaIdxBox.Text?.Trim(), statics = ImportStaticsBox.Text?.Trim();
+        int mw, mh, ax, ay, aw, ah, uop;
+        try
+        {
+            (mw, mh, ax, ay, aw, ah, uop) = (Num(MapWidthBox), Num(MapHeightBox), Num(AreaXBox), Num(AreaYBox), Num(AreaWBox), Num(AreaHBox), Num(UopIndexBox));
+        }
+        catch (FormatException)
+        {
+            Report(ImportStatusText, "Size, area and UOP index must be whole numbers.", AppStatusSeverity.Error);
+            return;
+        }
+
         await RunAsync(ImportButton, ImportStatusText, "Import", progress =>
         {
             var blocks = WorldFormatConversion.ImportArea(plugin, world, Path.GetFileName(world.TrimEnd('/', '\\')), map,
-                ImportStaIdxBox.Text?.Trim(), ImportStaticsBox.Text?.Trim(), Num(MapWidthBox), Num(MapHeightBox),
-                Num(AreaXBox), Num(AreaYBox), Num(AreaWBox), Num(AreaHBox), Num(UopIndexBox), progress);
+                staIdx, statics, mw, mh, ax, ay, aw, ah, uop, progress);
             return $"Imported {blocks} blocks.";
         });
     }
@@ -77,14 +88,33 @@ public sealed partial class WorldFormatView : UserControl
             return;
         }
 
-        await RunAsync(ExportButton, ExportStatusText, "Export", progress =>
+        var mapOut = Path.Combine(output, "map0.mul");
+        var idxOut = Path.Combine(output, "staidx0.mul");
+        var staticsOut = Path.Combine(output, "statics0.mul");
+        (int, int, int, int)? area;
+        try
         {
-            (int, int, int, int)? area = string.IsNullOrWhiteSpace(BlockWBox.Text)
+            area = string.IsNullOrWhiteSpace(BlockWBox.Text)
                 ? null
                 : (Num(BlockXBox), Num(BlockYBox), Num(BlockWBox), Num(BlockHBox));
+        }
+        catch (FormatException)
+        {
+            Report(ExportStatusText, "The block area must be whole numbers.", AppStatusSeverity.Error);
+            return;
+        }
+
+        var existing = new[] { mapOut, idxOut, staticsOut }.Where(File.Exists).ToArray();
+        if (existing.Length > 0 && !await ConfirmOverwriteAsync(this, "Overwrite existing files?", existing))
+        {
+            Report(ExportStatusText, "Export cancelled.", AppStatusSeverity.Warning);
+            return;
+        }
+
+        await RunAsync(ExportButton, ExportStatusText, "Export", progress =>
+        {
             Directory.CreateDirectory(output);
-            var (w, h) = WorldFormatConversion.ExportWorld(plugin, world, Path.Combine(output, "map0.mul"),
-                Path.Combine(output, "staidx0.mul"), Path.Combine(output, "statics0.mul"), area, progress);
+            var (w, h) = WorldFormatConversion.ExportWorld(plugin, world, mapOut, idxOut, staticsOut, area, progress, overwrite: true);
             return $"Exported {w} x {h} tiles.";
         });
     }

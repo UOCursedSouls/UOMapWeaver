@@ -128,6 +128,65 @@ public sealed class WorldFormatConversionTests : IDisposable
             WorldFormatConversion.ImportArea(_plugin, P("world"), "w", P("map.mul"), null, null, Size, Size, 0, 0, 8, 8));
     }
 
+    [Fact]
+    public void WorldFormatConversion_OnlyOneStaticsPath_Refused()
+    {
+        WriteFixture();
+        var ex = Assert.Throws<ArgumentException>(() =>
+            WorldFormatConversion.ImportArea(_plugin, P("world"), "w", P("map.mul"), P("staidx.mul"), null, Size, Size, 0, 0, 8, 8));
+        Assert.Contains("both staidx and statics", ex.Message);
+    }
+
+    [Fact]
+    public void WorldFormatConversion_ImportWithoutStatics_WritesEmptyStatics()
+    {
+        WriteFixture();
+        WorldFormatConversion.ImportArea(_plugin, P("world"), "w", P("map.mul"), null, null, Size, Size, 0, 0, 16, 16);
+        WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul"));
+        Assert.Equal(0, new FileInfo(P("s.mul")).Length);
+        Assert.All(StaticMulCodec.ReadStatics(P("i.mul"), P("s.mul"), 16, 16), l => Assert.Null(l));
+    }
+
+    [Fact]
+    public void WorldFormatConversion_ExportExistingFiles_RefusedUnlessOverwrite()
+    {
+        WriteFixture();
+        WorldFormatConversion.ImportArea(_plugin, P("world"), "w", P("map.mul"), null, null, Size, Size, 0, 0, 16, 16);
+        File.WriteAllText(P("m.mul"), "mine");
+
+        Assert.Throws<IOException>(() => WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul")));
+        Assert.Equal("mine", File.ReadAllText(P("m.mul")));
+        Assert.False(File.Exists(P("i.mul")));
+
+        WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul"), overwrite: true);
+        Assert.Equal(16 * 16 / 64 * 196, new FileInfo(P("m.mul")).Length);
+    }
+
+    [Fact]
+    public void WorldFormatConversion_UnboundedWorld_NeedsRectangle()
+    {
+        using (var w = _plugin.CreateWorld(P("world"), new WorldCreateOptions("w", 0, 0)))
+        {
+            w.WriteBlock(new WorldBlock(3, 2, Enumerable.Repeat(new WorldLandTile(9, 1), 64).ToArray(), []));
+            w.Complete();
+        }
+
+        Assert.Throws<ArgumentException>(() => WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul")));
+        var size = WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul"), (2, 2, 2, 1));
+        Assert.Equal((16, 8), size);
+        var tiles = MapMulCodec.ReadLandTiles(P("m.mul"), 16, 8);
+        Assert.Equal(0x00A8, tiles[0].TileId);
+        Assert.Equal(9, tiles[8].TileId);
+    }
+
+    [Fact]
+    public void WorldFormatConversion_HugeExportArea_Refused()
+    {
+        using (var w = _plugin.CreateWorld(P("world"), new WorldCreateOptions("w", 0, 0))) { w.Complete(); }
+        Assert.Throws<ArgumentException>(() =>
+            WorldFormatConversion.ExportWorld(_plugin, P("world"), P("m.mul"), P("i.mul"), P("s.mul"), (0, 0, 100000, 100000)));
+    }
+
     /// <summary>In-memory plugin: worlds are kept in a dictionary keyed by folder.</summary>
     private sealed class MemoryPlugin : IWorldFormatPlugin
     {
