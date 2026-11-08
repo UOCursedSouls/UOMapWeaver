@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\UOMapWeaver.Core\UOMapWeaver.Core.csproj" />
     <ProjectReference Include="..\UOMapWeaver.App\UOMapWeaver.App.csproj" />
+    <ProjectReference Include="..\UOMapWeaver.Plugins\UOMapWeaver.Plugins.csproj" />
   </ItemGroup>
 
 </Project>
