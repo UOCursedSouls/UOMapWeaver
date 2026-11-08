@@ -52,6 +52,10 @@ public static class PluginLoader
         return result;
     }
 
+    /// <summary>The plugin's area editing, or null when it lacks the Areas capability or the interface.</summary>
+    public static IWorldAreaPlugin? GetAreaPlugin(IWorldFormatPlugin plugin) =>
+        plugin.Capabilities.HasFlag(WorldFormatCapabilities.Areas) ? plugin as IWorldAreaPlugin : null;
+
     private static void Accept(IWorldFormatPlugin plugin, string dll, List<IWorldFormatPlugin> result, Action<string> log)
     {
         if (plugin.ContractVersion != WorldFormatContract.Version)

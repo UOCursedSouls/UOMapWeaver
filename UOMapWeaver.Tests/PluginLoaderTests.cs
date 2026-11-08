@@ -27,20 +27,20 @@ public sealed class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    public void PluginLoader_RefusesContractVersion2()
+    public void PluginLoader_RefusesContractVersion1()
     {
-        WritePlugin(_root, "Future", "future", 2);
+        WritePlugin(_root, "Old", "old", 1);
         var log = new List<string>();
 
         Assert.Empty(PluginLoader.Load([_root], log.Add));
-        Assert.Contains(log, m => m.Contains("contract v2"));
+        Assert.Contains(log, m => m.Contains("contract v1"));
     }
 
     [Fact]
     public void PluginLoader_DuplicateId_KeepsFirst()
     {
-        WritePlugin(_root, "A1", "same", 1);
-        WritePlugin(_root, "B2", "same", 1);
+        WritePlugin(_root, "A1", "same", WorldFormatContract.Version);
+        WritePlugin(_root, "B2", "same", WorldFormatContract.Version);
         var log = new List<string>();
 
         var p = Assert.Single(PluginLoader.Load([_root], log.Add));
@@ -53,7 +53,7 @@ public sealed class PluginLoaderTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "Broken"));
         File.WriteAllText(Path.Combine(_root, "Broken", "Broken.dll"), "not a dll");
-        WritePlugin(_root, "Good", "good", 1);
+        WritePlugin(_root, "Good", "good", WorldFormatContract.Version);
         var log = new List<string>();
 
         var p = Assert.Single(PluginLoader.Load([Path.Combine(_root, "missing"), _root], log.Add));
@@ -66,7 +66,7 @@ public sealed class PluginLoaderTests : IDisposable
     {
         var locked = Path.Combine(_root, "locked");
         Directory.CreateDirectory(locked);
-        WritePlugin(_root, "Good", "good", 1);
+        WritePlugin(_root, "Good", "good", WorldFormatContract.Version);
         var log = new List<string>();
         if (!OperatingSystem.IsWindows())
         {
@@ -88,7 +88,7 @@ public sealed class PluginLoaderTests : IDisposable
     }
 
     /// <summary>Emits a plugin assembly on disk: a public class implementing IWorldFormatPlugin with constant properties.</summary>
-    private static void WritePlugin(string folder, string name, string id, int contractVersion)
+    internal static void WritePlugin(string folder, string name, string id, int contractVersion)
     {
         var ab = new PersistedAssemblyBuilder(new AssemblyName(name), typeof(object).Assembly);
         var tb = ab.DefineDynamicModule(name).DefineType(name + ".Plugin", TypeAttributes.Public | TypeAttributes.Class, typeof(object), [typeof(IWorldFormatPlugin)]);

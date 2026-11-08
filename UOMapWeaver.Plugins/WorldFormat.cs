@@ -3,7 +3,7 @@ namespace UOMapWeaver.Plugins;
 
 public static class WorldFormatContract
 {
-    public const int Version = 1;
+    public const int Version = 2;
 }
 
 [Flags]
@@ -11,7 +11,8 @@ public enum WorldFormatCapabilities
 {
     None = 0,
     Import = 1,
-    Export = 2
+    Export = 2,
+    Areas = 4
 }
 
 public interface IWorldFormatPlugin
@@ -97,3 +98,27 @@ public sealed class WorldBlock
 public readonly record struct WorldLandTile(ushort TileId, sbyte Z);
 
 public readonly record struct WorldStaticTile(ushort TileId, byte X, byte Y, sbyte Z, ushort Hue);
+
+/// <summary>Implemented by the plugin class itself when <see cref="IWorldFormatPlugin.Capabilities"/> has <see cref="WorldFormatCapabilities.Areas"/>.</summary>
+public interface IWorldAreaPlugin
+{
+    IWorldAreaStore OpenAreas(string worldFolder);
+}
+
+public interface IWorldAreaStore : IDisposable
+{
+    /// <summary>Area kinds the plugin can create.</summary>
+    IReadOnlyList<string> Kinds { get; }
+
+    /// <summary>In file order.</summary>
+    IReadOnlyList<WorldArea> ReadAll();
+
+    /// <summary>Replaces every area; atomic.</summary>
+    void WriteAll(IReadOnlyList<WorldArea> areas);
+}
+
+/// <summary>Id is assigned by the plugin and opaque to the host; null for an area the host creates.</summary>
+public sealed record WorldArea(string? Id, string Name, string Kind, string? ParentId, IReadOnlyList<WorldAreaRect> Rects);
+
+/// <summary>World tiles; Width and Height are greater than 0.</summary>
+public readonly record struct WorldAreaRect(int X, int Y, int Width, int Height, sbyte MinZ, sbyte MaxZ);
