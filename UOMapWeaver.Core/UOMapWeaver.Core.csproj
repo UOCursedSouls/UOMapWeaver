@@ -11,6 +11,9 @@
     <Content Include="UOMapWeaver.ico" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\UOMapWeaver.Plugins\UOMapWeaver.Plugins.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="UOMapWeaver.Tests" />
   </ItemGroup>
 </Project>
