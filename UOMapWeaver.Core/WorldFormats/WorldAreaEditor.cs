@@ -52,8 +52,22 @@ public sealed class WorldAreaEditor : IDisposable
 
     public bool Dirty { get; private set; }
 
+    /// <summary>True while a save runs; every edit is refused until it ends.</summary>
+    public bool IsSaving => Volatile.Read(ref _saving) != 0;
+
+    private int _saving;
+
+    private void Guard()
+    {
+        if (IsSaving)
+        {
+            throw new InvalidOperationException("Areas cannot be edited while a save runs.");
+        }
+    }
+
     public int Create(string kind, string name, WorldAreaRect rect)
     {
+        Guard();
         if (!Kinds.Contains(kind))
         {
             throw new ArgumentException($"Unknown area kind '{kind}'.", nameof(kind));
@@ -68,6 +82,7 @@ public sealed class WorldAreaEditor : IDisposable
     /// <summary>Replaces one rectangle: used to move and to resize.</summary>
     public void SetRect(int areaIndex, int rectIndex, WorldAreaRect rect)
     {
+        Guard();
         Check(rect);
         var a = _areas[areaIndex];
         var rects = a.Rects.ToList();
@@ -78,6 +93,7 @@ public sealed class WorldAreaEditor : IDisposable
 
     public void Rename(int areaIndex, string name)
     {
+        Guard();
         _areas[areaIndex] = _areas[areaIndex] with { Name = name };
         Dirty = true;
     }
@@ -85,6 +101,7 @@ public sealed class WorldAreaEditor : IDisposable
     /// <summary>Deletes an area; its children move up to its parent.</summary>
     public void Delete(int areaIndex)
     {
+        Guard();
         var gone = _areas[areaIndex];
         _areas.RemoveAt(areaIndex);
         if (gone.Id is not null)
@@ -102,6 +119,44 @@ public sealed class WorldAreaEditor : IDisposable
     }
 
     public void Save()
+    {
+        if (Interlocked.Exchange(ref _saving, 1) != 0)
+        {
+            throw new InvalidOperationException("A save is already running.");
+        }
+
+        try
+        {
+            SaveCore();
+        }
+        finally
+        {
+            Volatile.Write(ref _saving, 0);
+        }
+    }
+
+    /// <summary>Saves off the calling thread; edits are refused from the moment this returns its task.</summary>
+    public Task SaveAsync()
+    {
+        if (Interlocked.Exchange(ref _saving, 1) != 0)
+        {
+            throw new InvalidOperationException("A save is already running.");
+        }
+
+        return Task.Run(() =>
+        {
+            try
+            {
+                SaveCore();
+            }
+            finally
+            {
+                Volatile.Write(ref _saving, 0);
+            }
+        });
+    }
+
+    private void SaveCore()
     {
         _store.WriteAll(_areas.ToList());
         // Ids of new areas are assigned by the plugin: reload so a second save does not create duplicates.

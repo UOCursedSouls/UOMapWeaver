@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using UOMapWeaver.Core;
+using UOMapWeaver.Core.TileColors;
 using UOMapWeaver.Core.WorldFormats;
 using UOMapWeaver.Plugins;
 using static UOMapWeaver.App.Views.ViewHelpers;
@@ -15,6 +17,7 @@ public sealed partial class WorldFormatView : UserControl
     {
         InitializeComponent();
         AreaCanvasControl.Changed += OnCanvasChanged;
+        AreaList.SelectionChanged += OnAreaListSelection;
         PluginComboBox.SelectionChanged += (_, _) => UpdateAreasVisibility();
         AttachedToVisualTree += (_, _) => RefreshPlugins();
         RefreshPlugins();
@@ -36,22 +39,61 @@ public sealed partial class WorldFormatView : UserControl
     }
 
     private WorldAreaEditor? _areas;
+    private WorldAreaMapView? _mapView;
+    private bool _syncingList;
 
     // Area tools exist only for a plugin with the Areas capability.
     private void UpdateAreasVisibility()
     {
-        _areas?.Dispose();
+        _mapView?.Dispose();
+        _mapView = null;
         _areas = null;
-        AreaCanvasControl.SetEditor(null);
+        AreaCanvasControl.SetView(null);
         AreaList.ItemsSource = null;
         AreasPanel.IsVisible = Plugin is { } p && Core.Plugins.PluginLoader.GetAreaPlugin(p) is not null;
     }
 
     private void RefreshAreaList()
     {
+        _syncingList = true;
         AreaList.ItemsSource = _areas?.Areas.Select(a => $"{a.Name} ({a.Kind})").ToList();
         AreaList.SelectedIndex = AreaCanvasControl.SelectedIndex;
+        _syncingList = false;
         AreaCanvasControl.InvalidateVisual();
+    }
+
+    private void OnAreaListSelection(object? s, SelectionChangedEventArgs e)
+    {
+        if (_syncingList || _areas is null)
+        {
+            return;
+        }
+
+        AreaCanvasControl.SelectedIndex = AreaList.SelectedIndex;
+        if (AreaList.SelectedIndex >= 0)
+        {
+            AreaNameBox.Text = _areas.Areas[AreaList.SelectedIndex].Name;
+        }
+    }
+
+    // Land colours: the tile colour JSON the Tile Colors tab writes, when present; otherwise grey by tile id.
+    private static Func<ushort, RgbColor> LandColors()
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(UOMapWeaverDataPaths.TileColorsRoot, "UOMapWeaver_TileColors.json");
+            if (File.Exists(path))
+            {
+                var map = TileColorMapSerializer.Load(path);
+                return id => map.TryGetColor(id, out var c) ? c : map.UnknownColor;
+            }
+        }
+        catch (Exception)
+        {
+            // An unreadable colour file falls back to grey.
+        }
+
+        return id => { var g = (byte)(60 + id % 120); return new RgbColor(g, g, g); };
     }
 
     private void OnCanvasChanged(WorldAreaRect? created)
@@ -90,11 +132,27 @@ public sealed partial class WorldFormatView : UserControl
         try
         {
             var editor = await Task.Run(() => WorldAreaEditor.Open(plugin, world));
-            _areas?.Dispose();
+            _mapView?.Dispose();
+            _mapView = null;
             _areas = editor;
             AreaKindComboBox.ItemsSource = editor?.Kinds.ToList();
             AreaKindComboBox.SelectedIndex = editor?.Kinds.Count > 0 ? 0 : -1;
-            AreaCanvasControl.SetEditor(editor);
+            if (editor is not null)
+            {
+                IWorldReader? reader = null;
+                try
+                {
+                    reader = plugin.OpenWorld(world);
+                }
+                catch (Exception)
+                {
+                    // No readable blocks: the areas are drawn on a blank background.
+                }
+
+                _mapView = new WorldAreaMapView(editor, reader, LandColors());
+            }
+
+            AreaCanvasControl.SetView(_mapView);
             RefreshAreaList();
             Report(AreasStatusText, $"Loaded {editor?.Areas.Count ?? 0} areas.", AppStatusSeverity.Success);
         }
@@ -137,10 +195,21 @@ public sealed partial class WorldFormatView : UserControl
             return;
         }
 
-        AreasSaveButton.IsEnabled = false;
+        SetAreaEditing(false);
+        Task save;
         try
         {
-            await Task.Run(editor.Save);
+            save = editor.SaveAsync();
+        }
+        catch (Exception ex)
+        {
+            Report(AreasStatusText, $"Save error: {ex.Message}", AppStatusSeverity.Error);
+            return;
+        }
+
+        try
+        {
+            await save;
             Report(AreasStatusText, $"Saved {editor.Areas.Count} areas.", AppStatusSeverity.Success);
             AreaCanvasControl.SelectedIndex = -1;
             RefreshAreaList();
@@ -151,8 +220,16 @@ public sealed partial class WorldFormatView : UserControl
         }
         finally
         {
-            AreasSaveButton.IsEnabled = true;
+            SetAreaEditing(true);
         }
+    }
+
+    private void SetAreaEditing(bool on)
+    {
+        AreasSaveButton.IsEnabled = on;
+        AreaRenameButton.IsEnabled = on;
+        AreaDeleteButton.IsEnabled = on;
+        AreaList.IsEnabled = on;
     }
 
     private async void OnBrowseImportMap(object? s, Avalonia.Interactivity.RoutedEventArgs e) => ImportMapBox.Text = await PickFileAsync(this, "Select map", ["mul", "uop"]) ?? ImportMapBox.Text;
