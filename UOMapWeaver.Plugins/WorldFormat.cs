@@ -19,7 +19,7 @@ public interface IWorldFormatPlugin
     /// <summary>The <see cref="WorldFormatContract.Version"/> the plugin was built against.</summary>
     int ContractVersion { get; }
 
-    /// <summary>Stable, lower-case identifier, e.g. "worldformat".</summary>
+    /// <summary>Stable, lower-case identifier, e.g. "myformat".</summary>
     string Id { get; }
 
     /// <summary>Name shown in the UI.</summary>
