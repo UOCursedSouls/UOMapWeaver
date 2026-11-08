@@ -133,6 +133,12 @@
         </TabItem.Header>
         <views:MapCopyView />
       </TabItem>
+      <TabItem ToolTip.Tip="Convert a map area to a world through a world format plugin and back">
+        <TabItem.Header>
+          <TextBlock Text="World Convert" />
+        </TabItem.Header>
+        <views:WorldFormatView />
+      </TabItem>
       <TabItem ToolTip.Tip="Merge verdata.mul patches into base MUL files to eliminate the verdata dependency">
         <TabItem.Header>
           <TextBlock Text="Verdata Merge" />
