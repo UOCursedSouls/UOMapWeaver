@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
 using System.Reflection;
 using System.Runtime.Loader;
 using UOMapWeaver.Plugins;
@@ -19,12 +18,23 @@ public static class PluginLoader
 
         foreach (var folder in pluginFolders)
         {
-            if (!Directory.Exists(folder))
+            string[] dirs;
+            try
             {
+                if (!Directory.Exists(folder))
+                {
+                    continue;
+                }
+
+                dirs = Directory.GetDirectories(folder);
+            }
+            catch (Exception ex)
+            {
+                log($"Plugin folder '{folder}' skipped: {ex.Message}");
                 continue;
             }
 
-            foreach (var dir in Directory.GetDirectories(folder).OrderBy(d => d, StringComparer.Ordinal))
+            foreach (var dir in dirs.OrderBy(d => d, StringComparer.Ordinal))
             {
                 var dll = Path.Combine(dir, Path.GetFileName(dir) + ".dll");
                 if (!File.Exists(dll))
@@ -32,16 +42,9 @@ public static class PluginLoader
                     continue;
                 }
 
-                try
+                foreach (var plugin in LoadAssembly(dll, log))
                 {
-                    foreach (var plugin in LoadAssembly(dll))
-                    {
-                        Accept(plugin, dll, result, log);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    log($"Plugin '{dll}' skipped: {ex.Message}");
+                    Accept(plugin, dll, result, log);
                 }
             }
         }
@@ -66,18 +69,35 @@ public static class PluginLoader
         result.Add(plugin);
     }
 
-    private static List<IWorldFormatPlugin> LoadAssembly(string dllPath)
+    private static List<IWorldFormatPlugin> LoadAssembly(string dllPath, Action<string> log)
     {
-        var assembly = new PluginLoadContext(dllPath).LoadFromAssemblyPath(dllPath);
         var plugins = new List<IWorldFormatPlugin>();
-        foreach (var type in assembly.GetExportedTypes())
+        Type[] types;
+        try
+        {
+            types = new PluginLoadContext(dllPath).LoadFromAssemblyPath(dllPath).GetExportedTypes();
+        }
+        catch (Exception ex)
+        {
+            log($"Plugin '{dllPath}' skipped: {ex.Message}");
+            return plugins;
+        }
+
+        foreach (var type in types)
         {
             if (type.IsAbstract || !typeof(IWorldFormatPlugin).IsAssignableFrom(type) || type.GetConstructor(Type.EmptyTypes) is null)
             {
                 continue;
             }
 
-            plugins.Add((IWorldFormatPlugin)Activator.CreateInstance(type)!);
+            try
+            {
+                plugins.Add((IWorldFormatPlugin)Activator.CreateInstance(type)!);
+            }
+            catch (Exception ex)
+            {
+                log($"Plugin type '{type.FullName}' in '{dllPath}' skipped: {ex.Message}");
+            }
         }
 
         return plugins;

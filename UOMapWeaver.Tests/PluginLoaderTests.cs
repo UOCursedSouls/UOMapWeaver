@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
 using System.Reflection;
 using System.Reflection.Emit;
 using UOMapWeaver.Core.Plugins;
@@ -60,6 +59,32 @@ public sealed class PluginLoaderTests : IDisposable
         var p = Assert.Single(PluginLoader.Load([Path.Combine(_root, "missing"), _root], log.Add));
         Assert.Equal("good", p.Id);
         Assert.Contains(log, m => m.Contains("Broken.dll"));
+    }
+
+    [Fact]
+    public void PluginLoader_UnreadableFolder_SkippedOthersLoad()
+    {
+        var locked = Path.Combine(_root, "locked");
+        Directory.CreateDirectory(locked);
+        WritePlugin(_root, "Good", "good", 1);
+        var log = new List<string>();
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.None);
+        }
+
+        try
+        {
+            var p = Assert.Single(PluginLoader.Load([locked, _root], log.Add));
+            Assert.Equal("good", p.Id);
+        }
+        finally
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
     }
 
     /// <summary>Emits a plugin assembly on disk: a public class implementing IWorldFormatPlugin with constant properties.</summary>

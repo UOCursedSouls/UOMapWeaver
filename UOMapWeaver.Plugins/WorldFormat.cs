@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
 // Plugin contract of UOMapWeaver (ADR-0003 section 2). Any change to this public surface bumps WorldFormatContract.Version.
 namespace UOMapWeaver.Plugins;
 
