@@ -1,0 +1,23 @@
+name: Build and test
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        run: dotnet build UOMapWeaver.sln
+      # AppSmokeTests open the Avalonia app and need a display
+      - name: Test
+        run: xvfb-run -a dotnet test UOMapWeaver.sln --no-build
