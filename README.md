@@ -680,7 +680,7 @@ If you find this project useful, you can support my development by buying me a c
 
 ## Resource Pack Builder
 
-Builds a **Minecraft-style Resource Pack** from UO Legacy client files. The Resource Pack contains all the assets that uoclient (the custom UO client) needs to run **without any MUL/UOP files**.
+Builds a **Minecraft-style Resource Pack** from UO Legacy client files. The Resource Pack contains all the assets that a UO client supporting resource packs needs to run **without any MUL/UOP files**.
 
 ### What It Extracts
 
@@ -705,7 +705,7 @@ Builds a **Minecraft-style Resource Pack** from UO Legacy client files. The Reso
 4. Select an **Output Folder** where the ResourcePack will be created
 5. Click **Build Resource Pack**
 
-The resulting folder (~500 MB) contains everything uoclient needs. Set `resource_pack_path` in uoclient's settings.json to point to this folder.
+The resulting folder (~500 MB) contains everything such a client needs. Set the client's resource pack path setting to point to this folder.
 
 ### Technical Details
 
@@ -713,7 +713,7 @@ The resulting folder (~500 MB) contains everything uoclient needs. Set `resource
 - **Mythic/BWT Decompression**: Handles gumps compressed with Mythic's BWT+MTF encoding (compression flag 3)
 - **PNG with Transparency**: All sprites are saved as 32-bit RGBA PNG with proper alpha transparency
 - **Metadata JSON**: Replaces binary tiledata.mul and radarcol.mul with human-readable JSON
-- **art_index.json**: Contains width/height/length for every sprite — allows uoclient to populate entry metadata without loading MUL files
+- **art_index.json**: Contains width/height/length for every sprite — allows the client to populate entry metadata without loading MUL files
 
 ---
 
