@@ -77,7 +77,7 @@
                         ToolTip.Tip="Apply verdata.mul patches directly into tiledata.mul, Art.mul, etc. to produce unified MUL files" />
                 <Button Name="GoResourcePack" Content="Resource Pack — Build Minecraft-style pack from UO client files"
                         HorizontalAlignment="Left"
-                        ToolTip.Tip="Extract all sprites, sounds, music, and metadata into a ResourcePack for MondainGate" />
+                        ToolTip.Tip="Extract all sprites, sounds, music, and metadata into a ResourcePack for a UO client that supports resource packs" />
               </StackPanel>
             </Border>
 
@@ -145,7 +145,7 @@
         </TabItem.Header>
         <views:VerdataMergerView />
       </TabItem>
-      <TabItem ToolTip.Tip="Build a Minecraft-style Resource Pack from UO client files for MondainGate">
+      <TabItem ToolTip.Tip="Build a Minecraft-style Resource Pack from UO client files for a UO client that supports resource packs">
         <TabItem.Header>
           <TextBlock Text="Resource Pack" />
         </TabItem.Header>
