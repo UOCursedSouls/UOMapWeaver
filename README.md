@@ -11,6 +11,8 @@ images you can open in any image editor, and converts them back when you are don
 On top of that it provides tools for generating statics, copying map regions,
 managing color palettes, and working with the newer `.uop` archive format.
 
+UOMapWeaver is licensed under GPL-3.0; plugins that use only the `UOMapWeaver.Plugins` interface may have any licence, see [LICENSE-EXCEPTION.md](./LICENSE-EXCEPTION.md).
+
 ---
 
 ## Table of Contents
