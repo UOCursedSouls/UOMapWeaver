@@ -14,6 +14,8 @@ public sealed partial class WorldFormatView : UserControl
     public WorldFormatView()
     {
         InitializeComponent();
+        AreaCanvasControl.Changed += OnCanvasChanged;
+        PluginComboBox.SelectionChanged += (_, _) => UpdateAreasVisibility();
         AttachedToVisualTree += (_, _) => RefreshPlugins();
         RefreshPlugins();
     }
@@ -30,6 +32,127 @@ public sealed partial class WorldFormatView : UserControl
         ImportButton.IsEnabled = any;
         ExportButton.IsEnabled = any;
         PluginStatusText.Text = any ? string.Empty : WorldFormatConversion.NoPluginMessage;
+        UpdateAreasVisibility();
+    }
+
+    private WorldAreaEditor? _areas;
+
+    // Area tools exist only for a plugin with the Areas capability.
+    private void UpdateAreasVisibility()
+    {
+        _areas?.Dispose();
+        _areas = null;
+        AreaCanvasControl.SetEditor(null);
+        AreaList.ItemsSource = null;
+        AreasPanel.IsVisible = Plugin is { } p && Core.Plugins.PluginLoader.GetAreaPlugin(p) is not null;
+    }
+
+    private void RefreshAreaList()
+    {
+        AreaList.ItemsSource = _areas?.Areas.Select(a => $"{a.Name} ({a.Kind})").ToList();
+        AreaList.SelectedIndex = AreaCanvasControl.SelectedIndex;
+        AreaCanvasControl.InvalidateVisual();
+    }
+
+    private void OnCanvasChanged(WorldAreaRect? created)
+    {
+        if (_areas is null)
+        {
+            return;
+        }
+
+        if (created is { } rect && AreaKindComboBox.SelectedItem is string kind)
+        {
+            var name = string.IsNullOrWhiteSpace(AreaNameBox.Text) ? "New area" : AreaNameBox.Text.Trim();
+            AreaCanvasControl.SelectedIndex = _areas.Create(kind, name, rect);
+        }
+
+        if (AreaCanvasControl.SelectedIndex >= 0)
+        {
+            AreaNameBox.Text = _areas.Areas[AreaCanvasControl.SelectedIndex].Name;
+        }
+
+        RefreshAreaList();
+    }
+
+    private async void OnBrowseAreasWorld(object? s, Avalonia.Interactivity.RoutedEventArgs e) => AreasWorldBox.Text = await PickFolderAsync(this, "Select world folder") ?? AreasWorldBox.Text;
+
+    private async void OnLoadAreas(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var plugin = Plugin;
+        var world = AreasWorldBox.Text?.Trim();
+        if (plugin is null || string.IsNullOrEmpty(world) || !Directory.Exists(world))
+        {
+            Report(AreasStatusText, "Choose an existing world folder.", AppStatusSeverity.Error);
+            return;
+        }
+
+        try
+        {
+            var editor = await Task.Run(() => WorldAreaEditor.Open(plugin, world));
+            _areas?.Dispose();
+            _areas = editor;
+            AreaKindComboBox.ItemsSource = editor?.Kinds.ToList();
+            AreaKindComboBox.SelectedIndex = editor?.Kinds.Count > 0 ? 0 : -1;
+            AreaCanvasControl.SetEditor(editor);
+            RefreshAreaList();
+            Report(AreasStatusText, $"Loaded {editor?.Areas.Count ?? 0} areas.", AppStatusSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            Report(AreasStatusText, $"Load error: {ex.Message}", AppStatusSeverity.Error);
+        }
+    }
+
+    private void OnRenameArea(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var i = AreaCanvasControl.SelectedIndex;
+        if (_areas is null || i < 0 || string.IsNullOrWhiteSpace(AreaNameBox.Text))
+        {
+            return;
+        }
+
+        _areas.Rename(i, AreaNameBox.Text.Trim());
+        RefreshAreaList();
+    }
+
+    private void OnDeleteArea(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var i = AreaCanvasControl.SelectedIndex;
+        if (_areas is null || i < 0)
+        {
+            return;
+        }
+
+        _areas.Delete(i);
+        AreaCanvasControl.SelectedIndex = -1;
+        RefreshAreaList();
+    }
+
+    private async void OnSaveAreas(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var editor = _areas;
+        if (editor is null)
+        {
+            return;
+        }
+
+        AreasSaveButton.IsEnabled = false;
+        try
+        {
+            await Task.Run(editor.Save);
+            Report(AreasStatusText, $"Saved {editor.Areas.Count} areas.", AppStatusSeverity.Success);
+            AreaCanvasControl.SelectedIndex = -1;
+            RefreshAreaList();
+        }
+        catch (Exception ex)
+        {
+            Report(AreasStatusText, $"Save error: {ex.Message}", AppStatusSeverity.Error);
+        }
+        finally
+        {
+            AreasSaveButton.IsEnabled = true;
+        }
     }
 
     private async void OnBrowseImportMap(object? s, Avalonia.Interactivity.RoutedEventArgs e) => ImportMapBox.Text = await PickFileAsync(this, "Select map", ["mul", "uop"]) ?? ImportMapBox.Text;
