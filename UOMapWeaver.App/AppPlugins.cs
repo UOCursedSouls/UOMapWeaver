@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,8 +14,15 @@ public static class AppPlugins
 
     public static void Load()
     {
-        var folders = new[] { Path.Combine(AppContext.BaseDirectory, "plugins") }
-            .Concat(AppSettings.GetList("PluginFolders"));
-        WorldFormats = PluginLoader.Load(folders, m => AppStatus.AppendLog(m, AppStatusSeverity.Warning));
+        try
+        {
+            var folders = new[] { Path.Combine(AppContext.BaseDirectory, "plugins") }
+                .Concat(AppSettings.GetList("PluginFolders"));
+            WorldFormats = PluginLoader.Load(folders, m => AppStatus.AppendLog(m, AppStatusSeverity.Warning));
+        }
+        catch (Exception ex)
+        {
+            AppStatus.AppendLog($"Plugin loading failed: {ex.Message}", AppStatusSeverity.Warning);
+        }
     }
 }
