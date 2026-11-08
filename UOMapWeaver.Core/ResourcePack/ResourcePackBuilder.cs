@@ -529,7 +529,7 @@ public class ResourcePackBuilder
         // 11. Manifest
         var manifest = new
         {
-            name = "worldformat UO Resource Pack",
+            name = "UO Resource Pack",
             version = "1.0.0",
             description = "Complete resource pack extracted from UO client files",
             source = "Ultima Online Classic Client + ModernUO Components",
