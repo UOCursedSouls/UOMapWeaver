@@ -18,6 +18,16 @@ public sealed class AppSmokeTests
     }
 
     [Fact]
+    public void WorldFormatView_NoPlugin_DisablesCommands()
+    {
+        AvaloniaTestApp.Ensure();
+
+        var view = new WorldFormatView();
+        Assert.False(view.FindControl<Button>("ImportButton")!.IsEnabled);
+        Assert.Contains("no world format plugin installed", view.FindControl<TextBlock>("PluginStatusText")!.Text);
+    }
+
+    [Fact]
     public void MainWindow_Constructs_WithContent()
     {
         AvaloniaTestApp.Ensure();
