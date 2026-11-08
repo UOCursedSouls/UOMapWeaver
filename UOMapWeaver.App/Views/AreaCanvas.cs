@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using UOMapWeaver.Core.TileColors;
 using UOMapWeaver.Core.WorldFormats;
 using UOMapWeaver.Plugins;
 
@@ -15,37 +17,94 @@ public sealed class AreaCanvas : Control
     private enum Drag { None, Create, Move, Resize }
 
     private const int Handle = 8;
+    private WorldAreaMapView? _view;
     private WorldAreaEditor? _editor;
+    private bool _needFit;
+    private bool _loading;
+    private bool _panning;
+    private Point _panLast;
     private Drag _drag;
     private Point _start;
     private WorldAreaRect _orig;
     private WorldAreaRect? _preview;
     private int _gx0, _gy0, _gw = 1024, _gh = 1024;
 
-    public int SelectedIndex { get; set; } = -1;
+    public int SelectedIndex
+    {
+        get => _view?.SelectedIndex ?? -1;
+        set
+        {
+            _view?.Select(value);
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>True while a save runs: pointer edits are ignored.</summary>
+    private bool Locked => _editor?.IsSaving ?? true;
 
     /// <summary>Raised when the editor changed or the selection moved; the second value is a new rectangle to create, if any.</summary>
     public event Action<WorldAreaRect?>? Changed;
 
-    public void SetEditor(WorldAreaEditor? editor)
+    public void SetView(WorldAreaMapView? view)
     {
-        _editor = editor;
-        SelectedIndex = -1;
+        _view = view;
+        _editor = view?.Editor;
+        _needFit = true;
         InvalidateVisual();
     }
 
-    private double Scale => Math.Max(0.0001, Math.Min(Bounds.Width / _gw, Bounds.Height / _gh));
+    private double Scale => _view?.Zoom ?? 1;
 
-    private Point ToWorld(Point p) => new(_gx0 + p.X / Scale, _gy0 + p.Y / Scale);
+    private Point ToWorld(Point p) => _view is { } v ? new Point(v.OriginX + p.X / v.Zoom, v.OriginY + p.Y / v.Zoom) : p;
 
-    private Rect ToView(WorldAreaRect r) => new((r.X - _gx0) * Scale, (r.Y - _gy0) * Scale, r.Width * Scale, r.Height * Scale);
+    private Rect ToView(WorldAreaRect r) => new((r.X - (_view?.OriginX ?? 0)) * Scale, (r.Y - (_view?.OriginY ?? 0)) * Scale, r.Width * Scale, r.Height * Scale);
+
+    /// <summary>Reads the blocks the view shows off the UI thread, then redraws.</summary>
+    private async void LoadVisibleAsync()
+    {
+        if (_view is not { } view || _loading || Bounds.Width <= 0)
+        {
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            double w = Bounds.Width, h = Bounds.Height;
+            if (await Task.Run(() => view.LoadVisible(w, h)) > 0)
+            {
+                InvalidateVisual();
+            }
+        }
+        catch (Exception)
+        {
+            // Drawing the land is a convenience; a failing reader leaves the blank background.
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        if (_view is null)
+        {
+            return;
+        }
+
+        var p = e.GetPosition(this);
+        _view.ZoomAt(p.X, p.Y, e.Delta.Y > 0 ? 1.25 : 0.8);
+        e.Handled = true;
+        InvalidateVisual();
+    }
 
     private void FitView()
     {
         int x0 = 0, y0 = 0, x1 = _editor?.WorldWidth ?? 0, y1 = _editor?.WorldHeight ?? 0;
         if (_editor is not null)
         {
-            foreach (var r in _editor.Areas.SelectMany(a => a.Rects))
+            foreach (var r in _editor.Areas.ToList().SelectMany(a => a.Rects))
             {
                 (x0, y0, x1, y1) = (Math.Min(x0, r.X), Math.Min(y0, r.Y), Math.Max(x1, r.X + r.Width), Math.Max(y1, r.Y + r.Height));
             }
@@ -59,6 +118,10 @@ public sealed class AreaCanvas : Control
         }
 
         (_gx0, _gy0, _gw, _gh) = (x0, y0, x1 - x0, y1 - y0);
+        if (_view is { } v && Bounds.Width > 0)
+        {
+            v.SetView(_gx0, _gy0, Math.Min(Bounds.Width / _gw, Bounds.Height / _gh));
+        }
     }
 
     public override void Render(DrawingContext ctx)
@@ -69,12 +132,19 @@ public sealed class AreaCanvas : Control
             return;
         }
 
-        FitView();
-        for (var i = 0; i < _editor.Areas.Count; i++)
+        if (_needFit && Bounds.Width > 0)
+        {
+            _needFit = false;
+            FitView();
+        }
+
+        DrawLand(ctx);
+        var areas = _editor.Areas; // one reference: a save may swap the list while this renders
+        for (var i = 0; i < areas.Count; i++)
         {
             var sel = i == SelectedIndex;
             var color = sel ? Colors.Orange : Colors.DeepSkyBlue;
-            foreach (var r in _editor.Areas[i].Rects)
+            foreach (var r in areas[i].Rects)
             {
                 ctx.DrawRectangle(new SolidColorBrush(color, 0.25), new Pen(new SolidColorBrush(color), sel ? 2 : 1), ToView(r));
             }
@@ -86,6 +156,68 @@ public sealed class AreaCanvas : Control
         }
     }
 
+    private void DrawLand(DrawingContext ctx)
+    {
+        if (_view is not { } v)
+        {
+            return;
+        }
+
+        var step = v.Stride(Bounds.Width, Bounds.Height);
+        var size = WorldBlock.Size * step * v.Zoom;
+        var perTile = step == 1 && v.Zoom >= 2;
+        using var clip = ctx.PushClip(new Rect(Bounds.Size));
+        var missing = false;
+        foreach (var (bx, by) in v.VisibleBlocks(Bounds.Width, Bounds.Height))
+        {
+            if (!v.TryGetCached(bx, by, out var colors))
+            {
+                missing = true;
+                continue;
+            }
+
+            if (colors is null)
+            {
+                continue;
+            }
+
+            var x0 = (bx * WorldBlock.Size - v.OriginX) * v.Zoom;
+            var y0 = (by * WorldBlock.Size - v.OriginY) * v.Zoom;
+            if (!perTile)
+            {
+                ctx.DrawRectangle(Brush(colors.Mean), null, new Rect(x0, y0, size + 1, size + 1));
+                continue;
+            }
+
+            for (var i = 0; i < colors.Tiles.Length; i++)
+            {
+                ctx.DrawRectangle(Brush(colors.Tiles[i]), null, new Rect(x0 + i % WorldBlock.Size * v.Zoom, y0 + i / WorldBlock.Size * v.Zoom, v.Zoom + 0.5, v.Zoom + 0.5));
+            }
+        }
+
+        if (missing)
+        {
+            LoadVisibleAsync();
+        }
+    }
+
+    private readonly System.Collections.Generic.Dictionary<int, IBrush> _brushes = [];
+
+    private IBrush Brush(RgbColor c)
+    {
+        if (!_brushes.TryGetValue(c.Key, out var b))
+        {
+            if (_brushes.Count > 4096)
+            {
+                _brushes.Clear();
+            }
+
+            _brushes[c.Key] = b = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B)).ToImmutable();
+        }
+
+        return b;
+    }
+
     private (int area, int rect) HitTest(Point world)
     {
         if (_editor is null)
@@ -93,9 +225,10 @@ public sealed class AreaCanvas : Control
             return (-1, -1);
         }
 
-        for (var i = _editor.Areas.Count - 1; i >= 0; i--)
+        var areas = _editor.Areas;
+        for (var i = areas.Count - 1; i >= 0; i--)
         {
-            var rects = _editor.Areas[i].Rects;
+            var rects = areas[i].Rects;
             for (var j = 0; j < rects.Count; j++)
             {
                 var r = rects[j];
@@ -112,6 +245,19 @@ public sealed class AreaCanvas : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         if (_editor is null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _panning = true;
+            _panLast = e.GetPosition(this);
+            e.Pointer.Capture(this);
+            return;
+        }
+
+        if (Locked)
         {
             return;
         }
@@ -141,6 +287,15 @@ public sealed class AreaCanvas : Control
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
+        if (_panning && _view is not null)
+        {
+            var now = e.GetPosition(this);
+            _view.Pan(now.X - _panLast.X, now.Y - _panLast.Y);
+            _panLast = now;
+            InvalidateVisual();
+            return;
+        }
+
         if (_drag == Drag.None)
         {
             return;
@@ -161,7 +316,13 @@ public sealed class AreaCanvas : Control
     {
         var drag = _drag;
         _drag = Drag.None;
+        _panning = false;
         e.Pointer.Capture(null);
+        if (Locked)
+        {
+            _preview = null;
+        }
+
         if (_preview is { } p && _editor is not null)
         {
             _preview = null;
